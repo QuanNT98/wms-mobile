@@ -32,7 +32,7 @@ function MenuList({ items }: { items: Item[] }) {
 }
 
 export default function MoreScreen() {
-  const { db, user, logout } = useDb();
+  const { db, user, logout, resetData } = useDb();
   const admin = isAdmin(user);
   const tasks = countPendingTasks(db, user);
   const managed = user?.warehouseId ? db.warehouses.find((w) => w.id === user.warehouseId) : null;
@@ -71,6 +71,18 @@ export default function MoreScreen() {
       <MenuList items={daily} />
 
       {admin ? (<><SectionHeader title="Danh mục & quản trị" /><MenuList items={adminItems} /></>) : null}
+
+      {admin ? (
+        <Card padded={false}>
+          <TouchableOpacity style={s.row} activeOpacity={0.7} onPress={resetData}>
+            <IconChip icon="rotate-ccw" tone="neutral" size={40} />
+            <View style={{ flex: 1 }}>
+              <Text style={type.body}>Đặt lại dữ liệu demo</Text>
+              <Text style={type.caption}>Khôi phục toàn bộ về trạng thái ban đầu</Text>
+            </View>
+          </TouchableOpacity>
+        </Card>
+      ) : null}
 
       <TouchableOpacity style={s.logout} onPress={confirmLogout} activeOpacity={0.7}>
         <Feather name="log-out" size={16} color={colors.danger} />

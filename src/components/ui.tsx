@@ -4,18 +4,22 @@ import {
   TouchableOpacity, View, ViewStyle, StyleProp, TextStyle,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, shadow, spacing, Tone, tone, type } from '../theme';
 
 type IconName = keyof typeof Feather.glyphMap;
 
 // ---------- Layout ----------
+// Trong tab: tab bar đã chừa inset nên bottom = 0; ở màn Stack (edge-to-edge Android) phải tự chừa
 export function Screen({ children, contentStyle, fab }: { children: React.ReactNode; contentStyle?: StyleProp<ViewStyle>; fab?: React.ReactNode }) {
+  const insets = useSafeAreaInsets();
+  const bottom = insets.bottom;
   return (
     <View style={styles.flex}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
         <ScrollView
           style={styles.flex}
-          contentContainerStyle={[styles.screenContent, fab ? { paddingBottom: 110 } : null, contentStyle]}
+          contentContainerStyle={[styles.screenContent, { paddingBottom: (fab ? 110 : 40) + bottom }, contentStyle]}
           keyboardShouldPersistTaps="handled"
           contentInsetAdjustmentBehavior="automatic"
           showsVerticalScrollIndicator={false}
@@ -23,7 +27,7 @@ export function Screen({ children, contentStyle, fab }: { children: React.ReactN
           {children}
         </ScrollView>
       </KeyboardAvoidingView>
-      {fab}
+      {fab ? <View style={{ position: 'absolute', right: 0, bottom }}>{fab}</View> : null}
     </View>
   );
 }

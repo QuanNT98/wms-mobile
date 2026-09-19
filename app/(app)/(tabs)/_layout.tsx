@@ -1,7 +1,7 @@
 import React from 'react';
-import { StyleSheet, TouchableOpacity } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDb } from '../../../src/store/DbContext';
 import { isAdmin } from '../../../src/engine/permissions';
 import { TabBar } from '../../../src/components/TabBar';
@@ -17,14 +17,10 @@ const TAB_ICONS: Record<string, IconName> = {
   more: 'grid',
 };
 
-function HeaderReset() {
-  const { user, resetData } = useDb();
-  if (!isAdmin(user)) return null;
-  return (
-    <TouchableOpacity onPress={resetData} style={s.resetBtn} hitSlop={8}>
-      <Feather name="rotate-ccw" size={15} color={colors.textSecondary} />
-    </TouchableOpacity>
-  );
+// Tab bar đã chừa inset đáy, nên các màn bên trong tab không cần chừa thêm
+function TabScene({ children }: { children: React.ReactNode }) {
+  const insets = useSafeAreaInsets();
+  return <SafeAreaInsetsContext.Provider value={{ ...insets, bottom: 0 }}>{children}</SafeAreaInsetsContext.Provider>;
 }
 
 export default function TabsLayout() {
@@ -34,13 +30,13 @@ export default function TabsLayout() {
   return (
     <Tabs
       tabBar={(props) => <TabBar {...props} icons={TAB_ICONS} />}
+      screenLayout={({ children }) => <TabScene>{children}</TabScene>}
       screenOptions={{
         headerStyle: { backgroundColor: colors.bg },
         headerShadowVisible: false,
         headerTintColor: colors.text,
         headerTitleStyle: { fontSize: 18, fontWeight: '700' },
         headerTitleAlign: 'left',
-        headerRight: () => <HeaderReset />,
         sceneStyle: { backgroundColor: colors.bg },
       }}
     >
@@ -52,7 +48,3 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
-
-const s = StyleSheet.create({
-  resetBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.hairline, alignItems: 'center', justifyContent: 'center', marginRight: 16 },
-});

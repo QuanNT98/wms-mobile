@@ -13,6 +13,6 @@ export function Fab({ onPress, label, icon = 'plus' }: { onPress: () => void; la
 }
 
 const s = StyleSheet.create({
-  fab: { position: 'absolute', right: 16, bottom: 18, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, height: 46, borderRadius: 23, backgroundColor: colors.primary, ...shadow.float },
+  fab: { marginRight: 16, marginBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, height: 46, borderRadius: 23, backgroundColor: colors.primary, ...shadow.float },
   fabText: { color: colors.white, fontWeight: '700', fontSize: 14 },
 });
