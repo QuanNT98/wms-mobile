@@ -24,6 +24,13 @@
     "plugins": [
       "expo-router"
     ],
-    "scheme": "wmsmobile"
+    "scheme": "wmsmobile",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "9736716e-6774-409f-b037-c1335ed82ad7"
+      }
+    },
+    "owner": "quannguyen98"
   }
 }
