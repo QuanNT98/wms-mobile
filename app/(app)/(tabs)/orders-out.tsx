@@ -1,0 +1,75 @@
+import React, { useMemo, useState } from 'react';
+import { useRouter } from 'expo-router';
+import { Alert } from 'react-native';
+import { useDb } from '../../../src/store/DbContext';
+import { canManageWarehouse, getManageableWarehouses } from '../../../src/engine/permissions';
+import { processOutputOrder, OutputOrderAction } from '../../../src/engine/engine';
+import { Badge, Button, EmptyText, Hint, Screen } from '../../../src/components/ui';
+import { Chips } from '../../../src/components/Chips';
+import { Fab } from '../../../src/components/Fab';
+import { OrderCard } from '../../../src/components/OrderCard';
+import { ORDER_OUT_STATUS, partnerName, whName, whShort } from '../../../src/utils/labels';
+
+type Filter = 'MINE' | 'ALL';
+
+export default function OrdersOutScreen() {
+  const router = useRouter();
+  const { db, user, mutate } = useDb();
+  const manageable = useMemo(() => getManageableWarehouses(db, user), [db, user]);
+
+  const [filter, setFilter] = useState<Filter>('MINE');
+  const process = (id: string, action: OutputOrderAction) => {
+    const confirmMsg: Partial<Record<OutputOrderAction, string>> = {
+      CANCEL: 'Xác nhận hủy đơn xuất này?',
+      RETURN_TO_SOURCE: 'Giao không thành công - trả toàn bộ hàng của đơn về kho nguồn?',
+    };
+    const msg = confirmMsg[action];
+    if (msg) {
+      Alert.alert('Xác nhận', msg, [
+        { text: 'Không', style: 'cancel' },
+        { text: 'Đồng ý', style: 'destructive', onPress: () => mutate((d, u) => processOutputOrder(d, u, id, action)) },
+      ]);
+      return;
+    }
+    mutate((d, u) => processOutputOrder(d, u, id, action));
+  };
+
+  const isMine = (o: typeof db.ordersOut[number]) =>
+    (o.status === 'PENDING' && canManageWarehouse(user, o.warehouseId)) ||
+    (o.status === 'LOADED' && (canManageWarehouse(user, o.deliveryVehicleId) || canManageWarehouse(user, o.warehouseId)));
+  const mine = db.ordersOut.filter(isMine);
+  const list = filter === 'MINE' ? mine : db.ordersOut;
+
+  return (
+    <Screen fab={manageable.length ? <Fab label="Tạo đơn xuất" onPress={() => router.push('/(app)/new-order-out' as never)} /> : undefined}>
+      <Chips value={filter} onChange={setFilter} options={[{ value: 'MINE', label: 'Cần xử lý', count: mine.length }, { value: 'ALL', label: 'Tất cả', count: db.ordersOut.length }]} />
+      {list.length === 0 ? <EmptyText>{filter === 'MINE' ? 'Không có đơn xuất nào chờ bạn xử lý' : 'Chưa có đơn xuất nào'}</EmptyText> : null}
+      {list.map((o) => {
+        const vehicle = o.deliveryVehicleId ? db.warehouses.find((w) => w.id === o.deliveryVehicleId) : null;
+        let actions: React.ReactNode = null;
+        let secondary: React.ReactNode = null;
+        if (o.status === 'PENDING') {
+          if (canManageWarehouse(user, o.warehouseId)) {
+            actions = <Button title={o.deliveryVehicleId ? 'Xuất kho, giao xe' : 'Xuất kho'} size="sm" tone="warning" icon="upload" onPress={() => process(o.id, 'DELIVER')} />;
+            secondary = <Button title="Hủy" size="sm" tone="danger" variant="soft" onPress={() => process(o.id, 'CANCEL')} />;
+          } else secondary = <Hint>Chờ kho nguồn xử lý</Hint>;
+        } else if (o.status === 'LOADED') {
+          const canComplete = canManageWarehouse(user, o.deliveryVehicleId);
+          const canReturn = canComplete || canManageWarehouse(user, o.warehouseId);
+          if (canComplete) actions = <Button title="Đã giao khách" size="sm" tone="success" icon="check" onPress={() => process(o.id, 'COMPLETE_DELIVERY')} />;
+          if (canReturn) secondary = <Button title="Trả về kho" size="sm" tone="neutral" variant="soft" onPress={() => process(o.id, 'RETURN_TO_SOURCE')} />;
+          if (!canComplete && !canReturn) secondary = <Hint>Đang chờ xe giao hàng xác nhận</Hint>;
+        }
+        return (
+          <OrderCard
+            key={o.id} id={o.id} timestamp={o.timestamp} status={ORDER_OUT_STATUS[o.status]}
+            from={whShort(db, o.warehouseId)} to={partnerName(db, o.customerId)} db={db} items={o.items} withPrice
+            meta={vehicle ? <Badge icon="truck" text={`Giao qua ${whShort(db, vehicle.id)}`} tone="primary" /> : <Badge icon="user" text="Khách tự lấy hàng" tone="neutral" />}
+            actions={actions} secondaryActions={secondary}
+          />
+        );
+      })}
+
+    </Screen>
+  );
+}
