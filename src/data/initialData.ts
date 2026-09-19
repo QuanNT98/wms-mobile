@@ -1,4 +1,4 @@
-import { DB } from '../types';
+import { DB } from '@/types';
 
 // Thời điểm tương đối so với hôm nay để dữ liệu demo luôn "mới"
 const at = (daysAgo: number, hour = 9, minute = 0) => {

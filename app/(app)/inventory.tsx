@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { useDb } from '../../src/store/DbContext';
-import { isMobileWarehouse } from '../../src/engine/permissions';
-import { Badge, Card, EmptyText, IconChip, Screen, SectionHeader } from '../../src/components/ui';
-import { Select } from '../../src/components/Select';
-import { colors, spacing, type } from '../../src/theme';
-import { formatQty } from '../../src/utils/format';
-import { WH_TYPE_LABEL, whOptions } from '../../src/utils/labels';
+import { useDb } from '@/store/DbContext';
+import { isMobileWarehouse } from '@/engine/permissions';
+import { Badge, Card, EmptyText, IconChip, SectionHeader } from '@/components/ui';
+import { Screen } from '@/components/layout/Screen';
+import { Select } from '@/components/ui/Select';
+import { colors, spacing, type } from '@/theme';
+import { formatQty } from '@/utils/format';
+import { WH_TYPE_LABEL, whOptions } from '@/utils/labels';
 
 export default function InventoryScreen() {
   const { db } = useDb();

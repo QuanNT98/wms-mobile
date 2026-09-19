@@ -2,11 +2,12 @@ import React from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { useDb } from '../../../src/store/DbContext';
-import { isAdmin } from '../../../src/engine/permissions';
-import { countPendingTasks } from '../../../src/utils/tasks';
-import { Card, IconChip, Screen, SectionHeader } from '../../../src/components/ui';
-import { colors, radius, spacing, Tone, type } from '../../../src/theme';
+import { useDb } from '@/store/DbContext';
+import { isAdmin } from '@/engine/permissions';
+import { usePendingTaskCounts } from '@/hooks/usePendingTasks';
+import { Card, IconChip, SectionHeader } from '@/components/ui';
+import { Screen } from '@/components/layout/Screen';
+import { colors, radius, spacing, Tone, type } from '@/theme';
 
 type IconName = keyof typeof Feather.glyphMap;
 interface Item { route: string; title: string; sub: string; icon: IconName; tone: Tone; badge?: number }
@@ -34,7 +35,7 @@ function MenuList({ items }: { items: Item[] }) {
 export default function MoreScreen() {
   const { db, user, logout, resetData } = useDb();
   const admin = isAdmin(user);
-  const tasks = countPendingTasks(db, user);
+  const tasks = usePendingTaskCounts();
   const managed = user?.warehouseId ? db.warehouses.find((w) => w.id === user.warehouseId) : null;
 
   const confirmLogout = () => Alert.alert('Đăng xuất', 'Bạn muốn đăng xuất khỏi ứng dụng?', [
@@ -45,13 +46,13 @@ export default function MoreScreen() {
   const daily: Item[] = [
     { route: 'incidents', title: 'Báo mất / hỏng / hoàn trả', sub: 'Ghi nhận sự cố hàng đang giữ', icon: 'alert-triangle', tone: 'orange', badge: tasks.incidents },
     { route: 'inventory', title: 'Tồn kho chi tiết', sub: 'Theo từng kho, xe, nhân viên', icon: 'layers', tone: 'info' },
-    { route: 'locations', title: 'Kho & bãi', sub: 'Điểm lưu kho cố định và di động', icon: 'map-pin', tone: 'teal' },
+    { route: 'catalog/locations', title: 'Kho & bãi', sub: 'Điểm lưu kho cố định và di động', icon: 'map-pin', tone: 'teal' },
   ];
   const adminItems: Item[] = [
-    { route: 'partners', title: 'Đối tác & khách hàng', sub: 'Nhà cung cấp, đại lý', icon: 'users', tone: 'violet' },
-    { route: 'fleet', title: 'Nhân viên & xe', sub: 'Kho di động gắn với nhân viên', icon: 'truck', tone: 'primary' },
-    { route: 'products', title: 'Sản phẩm', sub: 'SKU, đơn vị, giá tham khảo', icon: 'package', tone: 'neutral' },
-    { route: 'users', title: 'Người dùng & phân quyền', sub: 'Tài khoản đăng nhập', icon: 'shield', tone: 'danger' },
+    { route: 'catalog/partners', title: 'Đối tác & khách hàng', sub: 'Nhà cung cấp, đại lý', icon: 'users', tone: 'violet' },
+    { route: 'catalog/fleet', title: 'Nhân viên & xe', sub: 'Kho di động gắn với nhân viên', icon: 'truck', tone: 'primary' },
+    { route: 'catalog/products', title: 'Sản phẩm', sub: 'SKU, đơn vị, giá tham khảo', icon: 'package', tone: 'neutral' },
+    { route: 'catalog/users', title: 'Người dùng & phân quyền', sub: 'Tài khoản đăng nhập', icon: 'shield', tone: 'danger' },
     { route: 'accounting', title: 'Cân đối kế toán', sub: 'Nhập – xuất – tồn theo kỳ', icon: 'bar-chart-2', tone: 'success' },
   ];
 

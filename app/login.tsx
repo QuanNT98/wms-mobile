@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useDb } from '../src/store/DbContext';
-import { useToast } from '../src/components/Toast';
-import { DEMO_ACCOUNTS } from '../src/data/initialData';
-import { colors, radius, spacing, tone, type } from '../src/theme';
-import { Button, styles as ui } from '../src/components/ui';
+import { useDb } from '@/store/DbContext';
+import { useToast } from '@/components/layout/Toast';
+import { DEMO_ACCOUNTS } from '@/data/initialData';
+import { colors, radius, spacing, tone, type } from '@/theme';
+import { Button, fieldStyles as ui } from '@/components/ui';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();

@@ -1,21 +1,23 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Alert } from 'react-native';
-import { useDb } from '../../../src/store/DbContext';
-import { canManageWarehouse, getManageableWarehouses } from '../../../src/engine/permissions';
-import { processInputOrder } from '../../../src/engine/engine';
-import { Button, EmptyText, Hint, Screen } from '../../../src/components/ui';
-import { Chips } from '../../../src/components/Chips';
-import { Fab } from '../../../src/components/Fab';
-import { OrderCard } from '../../../src/components/OrderCard';
-import { ORDER_IN_STATUS, partnerName, whName, whShort } from '../../../src/utils/labels';
+import { useDb } from '@/store/DbContext';
+import { useManageableWarehouses } from '@/hooks/useManageableWarehouses';
+import { canManageWarehouse } from '@/engine/permissions';
+import { processInputOrder } from '@/engine/engine';
+import { Button, EmptyText, Hint } from '@/components/ui';
+import { Screen } from '@/components/layout/Screen';
+import { Chips } from '@/components/ui/Chips';
+import { Fab } from '@/components/layout/Fab';
+import { OrderCard } from '@/components/domain/OrderCard';
+import { ORDER_IN_STATUS, partnerName, whShort } from '@/utils/labels';
 
 type Filter = 'MINE' | 'ALL';
 
 export default function OrdersInScreen() {
   const router = useRouter();
   const { db, user, mutate } = useDb();
-  const manageable = useMemo(() => getManageableWarehouses(db, user), [db, user]);
+  const manageable = useManageableWarehouses();
 
   const [filter, setFilter] = useState<Filter>('MINE');
   const process = (id: string, action: 'RECEIVE' | 'CANCEL') => {
@@ -33,7 +35,7 @@ export default function OrdersInScreen() {
   const list = filter === 'MINE' ? mine : db.ordersIn;
 
   return (
-    <Screen fab={manageable.length ? <Fab label="Tạo đơn nhập" onPress={() => router.push('/(app)/new-order-in' as never)} /> : undefined}>
+    <Screen fab={manageable.length ? <Fab label="Tạo đơn nhập" onPress={() => router.push('/(app)/orders/new-in' as never)} /> : undefined}>
       <Chips value={filter} onChange={setFilter} options={[{ value: 'MINE', label: 'Cần xử lý', count: mine.length }, { value: 'ALL', label: 'Tất cả', count: db.ordersIn.length }]} />
       {list.length === 0 ? <EmptyText>{filter === 'MINE' ? 'Không có đơn nhập nào chờ bạn xử lý' : 'Chưa có đơn nhập nào'}</EmptyText> : null}
       {list.map((o) => {

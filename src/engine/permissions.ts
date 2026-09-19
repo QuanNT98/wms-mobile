@@ -1,4 +1,4 @@
-import { DB, User, Warehouse } from '../types';
+import { DB, User, Warehouse } from '@/types';
 
 export function isAdmin(u: User | null): boolean {
   return !!u && u.role === 'ADMIN';

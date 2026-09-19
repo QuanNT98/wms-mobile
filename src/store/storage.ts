@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DB } from '../types';
-import { INITIAL_DATA } from '../data/initialData';
-import { cloneDB } from '../utils/clone';
+import { DB } from '@/types';
+import { INITIAL_DATA } from '@/data/initialData';
+import { cloneDB } from '@/utils/clone';
 
 const DB_KEY = 'WMS_MULTI_FLEET_DB';
 const USER_KEY = 'WMS_CURRENT_USER';

@@ -14,7 +14,7 @@ Kiểm tra nhanh không cần thiết bị:
 
 ```bash
 npm run typecheck     # tsc --noEmit
-npm run test:engine   # chạy kịch bản nghiệp vụ A → B → C trên engine thuần
+npm test              # Jest: kịch bản nghiệp vụ A → B → C trên engine thuần
 ```
 
 ## Tài khoản demo
@@ -35,42 +35,38 @@ Màn đăng nhập có nút đăng nhập nhanh cho 4 tài khoản trên.
 
 ## Cấu trúc
 
-Điều hướng kiểu mobile: **bottom tab** cho việc dùng hàng ngày, màn phụ mở dạng Stack có nút Back. Form tạo/sửa là **màn riêng** (`new-*.tsx`, `*-form.tsx`) mở từ nút ⊕ hoặc chạm vào dòng; lưu xong hiện **toast** và tự quay lại.
+Điều hướng kiểu mobile: **bottom tab** cho việc dùng hàng ngày, màn phụ mở dạng Stack có nút Back. Form tạo/sửa là **màn riêng**, lưu xong hiện **toast** và tự quay lại. Import dùng alias `@/` → `src/`.
 
 ```
-app/
-  _layout.tsx                # Provider + auth gate (Stack.Protected) + StatusBar theo trạng thái đăng nhập
-  login.tsx                  # Màn đăng nhập
-  (app)/_layout.tsx          # Stack: (tabs) + các màn phụ có header Back
-  (app)/(tabs)/_layout.tsx   # 5 tab: Tổng quan · Nhập · Xuất · Luân chuyển · Thêm (badge = số việc chờ bạn)
-  (app)/(tabs)/index.tsx     # Admin: số liệu toàn hệ thống; Manager/Tài xế: "Vị trí của tôi" + việc cần làm
-  (app)/(tabs)/orders-in.tsx # Đơn nhập  (chip lọc Cần xử lý / Tất cả, ⊕ tạo đơn)
-  (app)/(tabs)/orders-out.tsx# Đơn xuất
-  (app)/(tabs)/internal.tsx  # Luân chuyển nội bộ
-  (app)/(tabs)/more.tsx      # Lưới mục còn lại + thẻ user + đăng xuất (nhóm Quản trị chỉ admin thấy)
-  (app)/incidents.tsx        # Báo mất / hỏng / hoàn trả + kho hàng hỏng
-  (app)/inventory.tsx        # Tồn kho chi tiết (nhóm theo vị trí)
-  (app)/locations.tsx        # Kho & Bãi
-  (app)/partners.tsx         # Đối tác & Khách hàng   (admin)
-  (app)/fleet.tsx            # Nhân viên & Xe         (admin)
-  (app)/products.tsx         # Sản phẩm               (admin)
-  (app)/users.tsx            # Người dùng & Phân quyền(admin)
-  (app)/accounting.tsx       # Cân đối Nhập – Xuất – Tồn (admin)
-  (app)/new-order-in|out.tsx # Màn tạo đơn nhập / xuất (FormScreen + ItemsEditor)
-  (app)/new-transfer.tsx     # Tạo phiếu luân chuyển
-  (app)/new-incident.tsx     # Gửi báo cáo sự cố
-  (app)/*-form.tsx           # Thêm/sửa đối tác, nhân viên, người dùng, sản phẩm, kho (nhận id qua params)
+app/                              # CHỈ route (Expo Router) – mỏng, không chứa logic
+  _layout.tsx                     # Provider + auth gate (Stack.Protected)
+  login.tsx
+  (app)/_layout.tsx               # Stack: (tabs) + màn phụ có header Back
+  (app)/(tabs)/                   # 5 tab: index · orders-in · orders-out · internal · more
+  (app)/orders/new-in|new-out.tsx # Tạo đơn nhập / xuất
+  (app)/transfers/new.tsx         # Tạo phiếu luân chuyển
+  (app)/incidents/index|new.tsx   # Sự cố hàng hóa + báo cáo mới
+  (app)/inventory.tsx · accounting.tsx
+  (app)/catalog/<partners|fleet|products|locations|users>/
+      index.tsx                   # danh sách (admin)
+      new.tsx · [id].tsx          # thêm / sửa → re-export màn từ src/screens
 src/
-  types/                     # Kiểu dữ liệu DB
-  data/initialData.ts        # Dữ liệu mẫu (giống INITIAL_DATA bản web)
-  engine/engine.ts           # Toàn bộ nghiệp vụ (port từ SyncEngine) – hàm thuần, (db, user, ...) => db mới
-  engine/permissions.ts
-  store/storage.ts           # Đọc/ghi AsyncStorage
-  store/DbContext.tsx        # React Context: db, user, login/logout, mutate()
-  components/                # Card, Field, Select (modal), ItemsEditor (stepper), OrderCard (thu gọn), FormScreen, Fab, Chips, Toast...
-  utils/tasks.ts             # Đếm "việc cần làm" cho badge tab & hộp việc
-scripts/engine.test.ts       # Test kịch bản nghiệp vụ chạy bằng tsx
+  types/            Kiểu dữ liệu DB
+  data/             Dữ liệu mẫu (initialData.ts)
+  engine/           Nghiệp vụ thuần: (db, user, ...) => db mới, ném Error
+  engine/__tests__/ Jest: kịch bản A → B → C
+  store/            AsyncStorage + DbContext (db, user, login/logout, mutate)
+  hooks/            usePendingTasks (việc cần làm), useManageableWarehouses
+  screens/catalog/  Màn form danh mục (PartnerFormScreen, DriverFormScreen, …)
+  components/
+    ui/             Nguyên tử, không biết nghiệp vụ: Button, Card, Badge, Field, Select, Chips, Typography (barrel index.ts)
+    layout/         Screen, FormScreen, TabBar, Fab, Toast
+    domain/         Biết DB/nghiệp vụ: OrderCard, ItemsEditor, NoAccess
+  theme/            Token màu, chữ, bóng, tone()
+  utils/            format, labels, clone
 ```
+
+Quy ước: route → `app/` (kebab-case), component/màn → PascalCase, hook → `useX.ts`; logic mới đặt ở `engine/` (thuần) hoặc `hooks/` (gắn React), không viết trong route.
 
 ## Hệ thống thiết kế (src/theme/index.ts)
 

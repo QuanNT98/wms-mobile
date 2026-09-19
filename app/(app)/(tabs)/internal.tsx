@@ -1,21 +1,23 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Alert } from 'react-native';
-import { useDb } from '../../../src/store/DbContext';
-import { canManageWarehouse, getManageableWarehouses } from '../../../src/engine/permissions';
-import { cancelTransfer, confirmTransfer } from '../../../src/engine/engine';
-import { Button, EmptyText, Hint, Screen } from '../../../src/components/ui';
-import { Chips } from '../../../src/components/Chips';
-import { Fab } from '../../../src/components/Fab';
-import { OrderCard } from '../../../src/components/OrderCard';
-import { TRANSFER_STATUS, whName, whShort } from '../../../src/utils/labels';
+import { useDb } from '@/store/DbContext';
+import { useManageableWarehouses } from '@/hooks/useManageableWarehouses';
+import { canManageWarehouse } from '@/engine/permissions';
+import { cancelTransfer, confirmTransfer } from '@/engine/engine';
+import { Button, EmptyText, Hint } from '@/components/ui';
+import { Screen } from '@/components/layout/Screen';
+import { Chips } from '@/components/ui/Chips';
+import { Fab } from '@/components/layout/Fab';
+import { OrderCard } from '@/components/domain/OrderCard';
+import { TRANSFER_STATUS, whShort } from '@/utils/labels';
 
 type Filter = 'MINE' | 'ALL';
 
 export default function InternalScreen() {
   const router = useRouter();
   const { db, user, mutate } = useDb();
-  const manageable = useMemo(() => getManageableWarehouses(db, user), [db, user]);
+  const manageable = useManageableWarehouses();
 
   const [filter, setFilter] = useState<Filter>('MINE');
   const cancel = (id: string) => {
@@ -29,7 +31,7 @@ export default function InternalScreen() {
   const list = filter === 'MINE' ? mine : db.transfers;
 
   return (
-    <Screen fab={manageable.length ? <Fab label="Tạo phiếu" onPress={() => router.push('/(app)/new-transfer' as never)} /> : undefined}>
+    <Screen fab={manageable.length ? <Fab label="Tạo phiếu" onPress={() => router.push('/(app)/transfers/new' as never)} /> : undefined}>
       <Chips value={filter} onChange={setFilter} options={[{ value: 'MINE', label: 'Cần xử lý', count: mine.length }, { value: 'ALL', label: 'Tất cả', count: db.transfers.length }]} />
       {list.length === 0 ? <EmptyText>{filter === 'MINE' ? 'Không có phiếu nào chờ bạn xử lý' : 'Chưa có phiếu luân chuyển nào'}</EmptyText> : null}
       {list.map((t) => {

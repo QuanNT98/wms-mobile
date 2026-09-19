@@ -3,46 +3,17 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useDb } from '../../../src/store/DbContext';
-import { canManageWarehouse, isAdmin, isMobileWarehouse } from '../../../src/engine/permissions';
-import { Card, EmptyText, IconChip, Screen, SectionHeader, StatCard } from '../../../src/components/ui';
-import { colors, radius, shadow, spacing, Tone, tone, type } from '../../../src/theme';
-import { formatQty } from '../../../src/utils/format';
-import { partnerName, whShort } from '../../../src/utils/labels';
-import { DB, User } from '../../../src/types';
+import { useDb } from '@/store/DbContext';
+import { isAdmin, isMobileWarehouse } from '@/engine/permissions';
+import { Card, EmptyText, IconChip, SectionHeader, StatCard } from '@/components/ui';
+import { Screen } from '@/components/layout/Screen';
+import { colors, radius, shadow, spacing, Tone, tone, type } from '@/theme';
+import { formatQty } from '@/utils/format';
+import { DB } from '@/types';
+import { PendingTask, usePendingTasks } from '@/hooks/usePendingTasks';
 
 type IconName = keyof typeof Feather.glyphMap;
-interface Task { key: string; icon: IconName; tone: Tone; title: string; sub: string; route: string }
-
-// Gom các chứng từ đang chờ chính user này xử lý thành danh sách "việc cần làm"
-function buildTasks(db: DB, user: User | null): Task[] {
-  const out: Task[] = [];
-  if (!user) return out;
-  const can = (id: string | null | undefined) => canManageWarehouse(user, id);
-  const admin = isAdmin(user);
-
-  db.ordersIn.forEach((o) => {
-    if (o.status === 'PENDING' && can(o.warehouseId)) out.push({ key: o.id, icon: 'download', tone: 'success', title: `Nhập kho ${o.id}`, sub: `${partnerName(db, o.supplierId)} → ${whShort(db, o.warehouseId)}`, route: '/(app)/(tabs)/orders-in' });
-  });
-  db.ordersOut.forEach((o) => {
-    if (o.status === 'PENDING' && can(o.warehouseId)) out.push({ key: o.id, icon: 'upload', tone: 'warning', title: `Xuất kho ${o.id}`, sub: `${whShort(db, o.warehouseId)} → ${partnerName(db, o.customerId)}${o.deliveryVehicleId ? ` · qua ${whShort(db, o.deliveryVehicleId)}` : ''}`, route: '/(app)/(tabs)/orders-out' });
-    else if (o.status === 'LOADED' && can(o.deliveryVehicleId)) out.push({ key: o.id, icon: 'truck', tone: 'primary', title: `Đang giao ${o.id}`, sub: `Giao cho ${partnerName(db, o.customerId)} · xác nhận khi giao xong`, route: '/(app)/(tabs)/orders-out' });
-  });
-  db.transfers.forEach((t) => {
-    if (t.status === 'PENDING' && can(t.toId)) out.push({ key: t.id, icon: 'repeat', tone: 'info', title: `Nhận hàng ${t.id}`, sub: `Từ ${whShort(db, t.fromId)} · xác nhận đã nhận`, route: '/(app)/(tabs)/internal' });
-  });
-  db.incidents.forEach((inc) => {
-    const label = inc.type === 'LOST' ? 'Báo mất' : inc.type === 'DAMAGED' ? 'Báo hỏng' : 'Hoàn trả';
-    if (inc.status === 'PENDING' && (inc.type === 'LOST' ? admin : can(inc.targetWarehouseId))) {
-      out.push({ key: inc.id, icon: 'alert-triangle', tone: 'orange', title: `${label} ${inc.id}`, sub: `Từ ${whShort(db, inc.warehouseId)} · chờ xác nhận`, route: '/(app)/incidents' });
-    } else if (inc.status === 'RECEIVED_DAMAGED' && can(inc.targetWarehouseId)) {
-      out.push({ key: inc.id, icon: 'tool', tone: 'warning', title: `Hàng hỏng ${inc.id}`, sub: `Tại ${whShort(db, inc.targetWarehouseId)} · sửa xong hoặc thanh lý`, route: '/(app)/incidents' });
-    }
-  });
-  return out;
-}
-
-function TaskList({ tasks }: { tasks: Task[] }) {
+function TaskList({ tasks }: { tasks: PendingTask[] }) {
   const router = useRouter();
   if (tasks.length === 0) {
     return (
@@ -117,7 +88,7 @@ function StockList({ db, stock, accent }: { db: DB; stock: { sku: string; qty: n
 export default function DashboardScreen() {
   const { db, user } = useDb();
   const admin = isAdmin(user);
-  const tasks = buildTasks(db, user);
+  const tasks = usePendingTasks();
   const firstName = user?.name.split('(')[0].trim().split(' ').pop() || '';
 
   // ---------- MANAGER / TÀI XẾ ----------

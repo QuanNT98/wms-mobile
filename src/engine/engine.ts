@@ -1,8 +1,8 @@
 import {
   DB, User, OrderItem, Role, PartnerType, HoldingType, FixedWarehouseType, IncidentType, StockItem,
-} from '../types';
-import { canManageWarehouse, isAdmin } from './permissions';
-import { cloneDB } from '../utils/clone';
+} from '@/types';
+import { canManageWarehouse, isAdmin } from '@/engine/permissions';
+import { cloneDB } from '@/utils/clone';
 
 // Mỗi hàm nhận DB hiện tại + user đang đăng nhập, trả về DB mới (đã clone).
 // Lỗi nghiệp vụ / quyền hạn được ném ra dưới dạng Error để UI hiển thị.

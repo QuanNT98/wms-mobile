@@ -1,5 +1,5 @@
-import { Tone } from '../theme';
-import { DB, Warehouse } from '../types';
+import { Tone } from '@/theme';
+import { DB, Warehouse } from '@/types';
 
 export const whOptions = (list: Warehouse[]) => list.map((w) => ({ value: w.id, label: w.name, sub: `[${w.type}] ${w.id}` }));
 

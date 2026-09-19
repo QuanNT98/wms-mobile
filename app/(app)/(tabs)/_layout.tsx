@@ -2,10 +2,10 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useDb } from '../../../src/store/DbContext';
-import { isAdmin } from '../../../src/engine/permissions';
-import { TabBar } from '../../../src/components/TabBar';
-import { colors } from '../../../src/theme';
+import { useDb } from '@/store/DbContext';
+import { isAdmin } from '@/engine/permissions';
+import { TabBar } from '@/components/layout/TabBar';
+import { colors } from '@/theme';
 
 type IconName = keyof typeof Feather.glyphMap;
 

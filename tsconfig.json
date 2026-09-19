@@ -1,7 +1,20 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "strict": true
+    "strict": true,
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    },
+    "types": [
+      "jest"
+    ]
   },
-  "exclude": ["node_modules", "scripts"]
+  "exclude": [
+    "node_modules",
+    "android",
+    "ios",
+    "dist"
+  ]
 }

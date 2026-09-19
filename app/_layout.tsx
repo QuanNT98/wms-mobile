@@ -3,9 +3,9 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { DbProvider, useDb } from '../src/store/DbContext';
-import { Loading } from '../src/components/ui';
-import { ToastProvider } from '../src/components/Toast';
+import { DbProvider, useDb } from '@/store/DbContext';
+import { Loading } from '@/components/ui';
+import { ToastProvider } from '@/components/layout/Toast';
 
 function RootStack() {
   const { ready, user } = useDb();
