@@ -18,9 +18,6 @@
       },
       "predictiveBackGestureEnabled": false
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
     "plugins": [
       "expo-router"
     ],
@@ -31,6 +28,16 @@
         "projectId": "9736716e-6774-409f-b037-c1335ed82ad7"
       }
     },
-    "owner": "quannguyen98"
+    "owner": "quannguyen98",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/9736716e-6774-409f-b037-c1335ed82ad7"
+    },
+    "platforms": [
+      "ios",
+      "android"
+    ]
   }
 }
