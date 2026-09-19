@@ -21,11 +21,9 @@ export function TabBar({ state, descriptors, navigation, icons }: BottomTabBarPr
           if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
         };
         return (
-          <TouchableOpacity key={route.key} accessibilityRole="button" accessibilityState={focused ? { selected: true } : {}} onPress={onPress} activeOpacity={0.7} style={s.tabWrap}>
-            <View style={[s.tab, focused && s.tabActive]}>
-              <Feather name={icons[route.name] || 'circle'} size={22} color={focused ? colors.primary : colors.textMuted} />
-              <Text style={[s.label, focused && s.labelActive]} numberOfLines={1}>{label}</Text>
-            </View>
+          <TouchableOpacity key={route.key} accessibilityRole="button" accessibilityState={focused ? { selected: true } : {}} onPress={onPress} activeOpacity={0.7} style={[s.tab, focused && s.tabActive]}>
+            <Feather name={icons[route.name] || 'circle'} size={22} color={focused ? colors.primary : colors.textMuted} />
+            <Text style={[s.label, focused && s.labelActive]} numberOfLines={1}>{label}</Text>
           </TouchableOpacity>
         );
       })}
@@ -35,9 +33,8 @@ export function TabBar({ state, descriptors, navigation, icons }: BottomTabBarPr
 
 const s = StyleSheet.create({
   bar: { flexDirection: 'row', backgroundColor: colors.surface, paddingTop: 10, paddingHorizontal: 4, borderTopLeftRadius: 24, borderTopRightRadius: 24, ...shadow.bar },
-  tabWrap: { flex: 1, alignItems: 'center', paddingHorizontal: 2 },
-  tab: { alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 9, paddingHorizontal: 2, borderRadius: radius.lg, width: '100%' },
-  tabActive: { backgroundColor: colors.primarySoft },
+  tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 9, paddingHorizontal: 2, marginHorizontal: 2, borderRadius: 16 },
+  tabActive: { backgroundColor: colors.primarySoft, borderRadius: 16, overflow: 'hidden' },
   label: { fontSize: 11, fontWeight: '600', color: colors.textMuted, letterSpacing: -0.2 },
   labelActive: { color: colors.primary, fontWeight: '700' },
 });
