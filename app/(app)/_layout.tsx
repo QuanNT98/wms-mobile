@@ -1,6 +1,7 @@
 import React from 'react';
 import { Stack } from 'expo-router';
 import { colors } from '@/theme';
+import { AppHeader } from '@/components/layout/AppHeader';
 
 // Stack bao ngoài: (tabs) là màn chính; các màn còn lại mở chồng lên có nút Back
 export const PAGE_TITLES: Record<string, string> = {
@@ -32,11 +33,8 @@ export default function AppLayout() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: colors.bg },
-        headerShadowVisible: false,
-        headerTintColor: colors.text,
-        headerTitleStyle: { fontSize: 17, fontWeight: '700' },
-        headerBackButtonDisplayMode: 'minimal',
+        // Header tự vẽ (xem AppHeader) thay cho header native để giống design trên mọi nền tảng
+        header: (props) => <AppHeader {...props} />,
         contentStyle: { backgroundColor: colors.bg },
       }}
     >
