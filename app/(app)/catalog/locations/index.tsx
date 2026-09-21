@@ -2,7 +2,7 @@ import React from 'react';
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 import { useDb } from '@/store/DbContext';
-import { isAdmin, isMobileWarehouse } from '@/engine/permissions';
+import { canViewStock, isAdmin, isMobileWarehouse } from '@/engine/permissions';
 import { Badge, Button, Card, EmptyText, IconChip, Row, SectionHeader } from '@/components/ui';
 import { Screen } from '@/components/layout/Screen';
 import { Fab } from '@/components/layout/Fab';
@@ -42,10 +42,12 @@ export default function LocationsScreen() {
                 <Text style={type.caption}>Người quản lý</Text>
                 <Text style={type.bodySm} numberOfLines={1}>{manager ? manager.name : 'Chưa chỉ định'}</Text>
               </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={type.caption}>Tồn kho</Text>
-                <Text style={st.stock}>{formatQty(stock)} <Text style={st.unit}>SP</Text></Text>
-              </View>
+              {canViewStock(user, w.id) ? (
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={type.caption}>Tồn kho</Text>
+                  <Text style={st.stock}>{formatQty(stock)} <Text style={st.unit}>SP</Text></Text>
+                </View>
+              ) : null}
               {admin && !mobile ? (
                 <Button title="Sửa" size="sm" variant="soft" tone="neutral" icon="edit-2" onPress={() => router.push({ pathname: '/(app)/catalog/locations/[id]', params: { id: w.id } } as never)} />
               ) : null}
