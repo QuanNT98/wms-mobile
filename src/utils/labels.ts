@@ -17,6 +17,7 @@ export const ORDER_IN_STATUS: Record<string, { text: string; tone: Tone }> = {
 export const ORDER_OUT_STATUS: Record<string, { text: string; tone: Tone }> = {
   PENDING: { text: 'Chờ xuất kho', tone: 'amber' },
   LOADED: { text: 'Đang Giao (Trên Xe)', tone: 'indigo' },
+  RETURNING: { text: 'Đang Trả Về Kho', tone: 'orange' },
   DELIVERED: { text: 'Đã Giao / Hoàn Tất', tone: 'emerald' },
   CANCELLED: { text: 'Đã hủy', tone: 'slate' },
 };

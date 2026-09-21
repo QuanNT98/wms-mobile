@@ -23,7 +23,7 @@ export default function OrdersOutScreen() {
   const process = (id: string, action: OutputOrderAction) => {
     const confirmMsg: Partial<Record<OutputOrderAction, string>> = {
       CANCEL: 'Xác nhận hủy đơn xuất này?',
-      RETURN_TO_SOURCE: 'Giao không thành công - trả toàn bộ hàng của đơn về kho nguồn?',
+      START_RETURN: 'Giao không thành công - trả toàn bộ hàng của đơn về kho nguồn? Hàng sẽ rời khỏi xe, kho nguồn cần xác nhận đã nhận.',
     };
     const msg = confirmMsg[action];
     if (msg) {
@@ -38,7 +38,8 @@ export default function OrdersOutScreen() {
 
   const isMine = (o: typeof db.ordersOut[number]) =>
     (o.status === 'PENDING' && canManageWarehouse(user, o.warehouseId)) ||
-    (o.status === 'LOADED' && (canManageWarehouse(user, o.deliveryVehicleId) || canManageWarehouse(user, o.warehouseId)));
+    (o.status === 'LOADED' && canManageWarehouse(user, o.deliveryVehicleId)) ||
+    (o.status === 'RETURNING' && canManageWarehouse(user, o.warehouseId));
   const mine = db.ordersOut.filter(isMine);
   const list = filter === 'MINE' ? mine : db.ordersOut;
 
@@ -56,11 +57,15 @@ export default function OrdersOutScreen() {
             secondary = <Button title="Hủy" size="sm" tone="danger" variant="soft" onPress={() => process(o.id, 'CANCEL')} />;
           } else secondary = <Hint>Chờ kho nguồn xử lý</Hint>;
         } else if (o.status === 'LOADED') {
-          const canComplete = canManageWarehouse(user, o.deliveryVehicleId);
-          const canReturn = canComplete || canManageWarehouse(user, o.warehouseId);
-          if (canComplete) actions = <Button title="Đã giao khách" size="sm" tone="success" icon="check" onPress={() => process(o.id, 'COMPLETE_DELIVERY')} />;
-          if (canReturn) secondary = <Button title="Trả về kho" size="sm" tone="neutral" variant="soft" onPress={() => process(o.id, 'RETURN_TO_SOURCE')} />;
-          if (!canComplete && !canReturn) secondary = <Hint>Đang chờ xe giao hàng xác nhận</Hint>;
+          // Hàng đang trên xe: chỉ xe được xác nhận giao / trả về, kho nguồn chỉ theo dõi
+          if (canManageWarehouse(user, o.deliveryVehicleId)) {
+            actions = <Button title="Đã giao khách" size="sm" tone="success" icon="check" onPress={() => process(o.id, 'COMPLETE_DELIVERY')} />;
+            secondary = <Button title="Trả về kho" size="sm" tone="neutral" variant="soft" onPress={() => process(o.id, 'START_RETURN')} />;
+          } else secondary = <Hint>Đang chờ xe giao hàng xác nhận</Hint>;
+        } else if (o.status === 'RETURNING') {
+          if (canManageWarehouse(user, o.warehouseId)) {
+            actions = <Button title="Đã nhận lại hàng" size="sm" tone="success" icon="check" onPress={() => process(o.id, 'CONFIRM_RETURN')} />;
+          } else secondary = <Hint>Hàng đang về kho, chờ kho nguồn xác nhận</Hint>;
         }
         return (
           <OrderCard

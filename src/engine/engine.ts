@@ -244,13 +244,14 @@ export function createOutputOrder(
   return cleanup(db);
 }
 
-export type OutputOrderAction = 'DELIVER' | 'CANCEL' | 'COMPLETE_DELIVERY' | 'RETURN_TO_SOURCE';
+export type OutputOrderAction = 'DELIVER' | 'CANCEL' | 'COMPLETE_DELIVERY' | 'START_RETURN' | 'CONFIRM_RETURN';
 
 // 'DELIVER'  (PENDING) - Không có xe giao: xuất kho, giao thẳng cho khách -> DELIVERED
 //                      - Có xe giao: xuất kho, hàng lên xe (luân chuyển nội bộ) -> LOADED
 // 'CANCEL'   (PENDING) - Hủy đơn, chưa xuất kho nên không cần hoàn hàng
-// 'COMPLETE_DELIVERY' (LOADED) - Xe xác nhận đã giao thành công -> DELIVERED
-// 'RETURN_TO_SOURCE'  (LOADED) - Giao không thành, trả hàng về kho nguồn -> PENDING
+// 'COMPLETE_DELIVERY' (LOADED)    - Xe xác nhận đã giao thành công -> DELIVERED
+// 'START_RETURN'      (LOADED)    - Giao không thành, CHỈ xe bấm trả về: trừ tồn xe, hàng đang về kho -> RETURNING
+// 'CONFIRM_RETURN'    (RETURNING) - CHỈ kho nguồn xác nhận đã nhận lại: cộng tồn kho -> PENDING (xử lý lại đơn)
 export function processOutputOrder(db0: DB, user: User | null, orderId: string, action: OutputOrderAction): DB {
   const db = cloneDB(db0);
   const order = db.ordersOut.find((o) => o.id === orderId);
@@ -279,16 +280,18 @@ export function processOutputOrder(db0: DB, user: User | null, orderId: string, 
     // Hàng đã giao thành công cho khách - rời khỏi hệ thống
     order.items.forEach((item) => addStock(db.inventory, order.deliveryVehicleId!, item.sku, -item.qty));
     order.status = 'DELIVERED';
-  } else if (action === 'RETURN_TO_SOURCE') {
+  } else if (action === 'START_RETURN') {
     if (order.status !== 'LOADED') return db0;
-    if (!canManageWarehouse(user, order.deliveryVehicleId) && !canManageWarehouse(user, order.warehouseId)) {
-      throw new Error('Bạn không có quyền trả hàng về kho cho đơn này!');
-    }
+    // Hàng đang thuộc quyền kiểm soát của xe -> kho nguồn không được tự "lấy" về
+    if (!canManageWarehouse(user, order.deliveryVehicleId)) throw new Error('Chỉ người quản lý xe/nhân viên giao hàng mới được trả hàng về kho!');
     assertEnoughStock(db, order.deliveryVehicleId!, order.items, (n) => `Dữ liệu tồn kho trên xe không khớp cho sản phẩm: ${n}`);
-    order.items.forEach((item) => {
-      addStock(db.inventory, order.deliveryVehicleId!, item.sku, -item.qty);
-      addStock(db.inventory, order.warehouseId, item.sku, item.qty);
-    });
+    // Trừ tồn xe ngay - hàng coi như đang trên đường về kho, chưa cộng vào kho cho tới khi kho xác nhận
+    order.items.forEach((item) => addStock(db.inventory, order.deliveryVehicleId!, item.sku, -item.qty));
+    order.status = 'RETURNING';
+  } else if (action === 'CONFIRM_RETURN') {
+    if (order.status !== 'RETURNING') return db0;
+    if (!canManageWarehouse(user, order.warehouseId)) throw new Error('Chỉ người quản lý kho nguồn mới được xác nhận đã nhận lại hàng!');
+    order.items.forEach((item) => addStock(db.inventory, order.warehouseId, item.sku, item.qty));
     order.status = 'PENDING'; // Quay lại chờ xử lý: có thể xuất lại hoặc hủy
   }
   return cleanup(db);

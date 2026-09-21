@@ -67,7 +67,8 @@ export interface OrderIn {
   status: OrderInStatus;
 }
 
-export type OrderOutStatus = 'PENDING' | 'LOADED' | 'DELIVERED' | 'CANCELLED';
+// RETURNING: xe giao không thành, đã bấm trả về – hàng đang trên đường về kho nguồn, chờ kho xác nhận nhận
+export type OrderOutStatus = 'PENDING' | 'LOADED' | 'RETURNING' | 'DELIVERED' | 'CANCELLED';
 export interface OrderOut {
   id: string;
   timestamp: string;

@@ -26,10 +26,19 @@ db = E.processOutputOrder(db, xeB, out.id, 'COMPLETE_DELIVERY');
 expect(db.ordersOut[0].status).toBe('DELIVERED');
 expect(stock(db, 'XE-01', 'SKU-88')).toBe(100);
 
-// Giao không thành -> trả về kho
+// Giao không thành -> xe bấm trả về (RETURNING) -> kho nguồn xác nhận đã nhận (PENDING)
 db = E.createOutputOrder(db, admin, 'KH001', 'KH001', [{ sku: 'SKU-99', qty: 5, price: 1 }], 'XE-01');
 db = E.processOutputOrder(db, khoA, db.ordersOut[0].id, 'DELIVER');
-db = E.processOutputOrder(db, xeB, db.ordersOut[0].id, 'RETURN_TO_SOURCE');
+expect(stock(db, 'KH001', 'SKU-99')).toBe(495);
+expect(stock(db, 'XE-01', 'SKU-99')).toBe(55);
+throws(() => E.processOutputOrder(db, khoA, db.ordersOut[0].id, 'START_RETURN'), /xe\/nhân viên giao hàng/); // kho không được tự lấy hàng về
+db = E.processOutputOrder(db, xeB, db.ordersOut[0].id, 'START_RETURN');
+expect(db.ordersOut[0].status).toBe('RETURNING');
+expect(stock(db, 'XE-01', 'SKU-99')).toBe(50);   // đã rời xe
+expect(stock(db, 'KH001', 'SKU-99')).toBe(495);  // chưa về kho
+throws(() => E.processOutputOrder(db, xeB, db.ordersOut[0].id, 'CONFIRM_RETURN'), /kho nguồn/);   // xe không được xác nhận thay kho
+expect(E.processOutputOrder(db, xeB, db.ordersOut[0].id, 'START_RETURN')).toBe(db);               // bấm lại không đổi gì
+db = E.processOutputOrder(db, khoA, db.ordersOut[0].id, 'CONFIRM_RETURN');
 expect(db.ordersOut[0].status).toBe('PENDING');
 expect(stock(db, 'KH001', 'SKU-99')).toBe(500);
 expect(stock(db, 'XE-01', 'SKU-99')).toBe(50);

@@ -12,7 +12,7 @@ type IconName = keyof typeof Feather.glyphMap;
 // Dùng cho badge trên tab và hộp việc trên màn Tổng quan.
 export interface PendingTasks {
   ordersIn: number;      // đơn nhập chờ kho đích nhập kho
-  ordersOut: number;     // đơn xuất chờ xuất kho (kho nguồn) hoặc chờ xe xác nhận giao (xe)
+  ordersOut: number;     // đơn xuất chờ xuất kho / chờ nhận lại hàng trả về (kho nguồn) hoặc chờ xe xác nhận giao (xe)
   transfers: number;     // phiếu chuyển chờ kho đích nhận
   incidents: number;     // báo cáo chờ xác nhận nhận hàng / chờ admin xác nhận mất / hàng hỏng chờ xử lý
   total: number;
@@ -27,6 +27,7 @@ export function countPendingTasks(db: DB, user: User | null): PendingTasks {
   db.ordersOut.forEach((o) => {
     if (o.status === 'PENDING' && can(o.warehouseId)) t.ordersOut++;
     else if (o.status === 'LOADED' && can(o.deliveryVehicleId)) t.ordersOut++;
+    else if (o.status === 'RETURNING' && can(o.warehouseId)) t.ordersOut++;
   });
   db.transfers.forEach((x) => { if (x.status === 'PENDING' && can(x.toId)) t.transfers++; });
   db.incidents.forEach((inc) => {
@@ -55,6 +56,7 @@ export function buildPendingTasks(db: DB, user: User | null): PendingTask[] {
   db.ordersOut.forEach((o) => {
     if (o.status === 'PENDING' && can(o.warehouseId)) out.push({ key: o.id, icon: 'upload', tone: 'warning', title: `Xuất kho ${o.id}`, sub: `${whShort(db, o.warehouseId)} → ${partnerName(db, o.customerId)}${o.deliveryVehicleId ? ` · qua ${whShort(db, o.deliveryVehicleId)}` : ''}`, route: '/(app)/(tabs)/orders-out' });
     else if (o.status === 'LOADED' && can(o.deliveryVehicleId)) out.push({ key: o.id, icon: 'truck', tone: 'primary', title: `Đang giao ${o.id}`, sub: `Giao cho ${partnerName(db, o.customerId)} · xác nhận khi giao xong`, route: '/(app)/(tabs)/orders-out' });
+    else if (o.status === 'RETURNING' && can(o.warehouseId)) out.push({ key: o.id, icon: 'corner-down-left', tone: 'orange', title: `Nhận lại hàng ${o.id}`, sub: `Từ ${whShort(db, o.deliveryVehicleId)} trả về · xác nhận đã nhận`, route: '/(app)/(tabs)/orders-out' });
   });
   db.transfers.forEach((t) => {
     if (t.status === 'PENDING' && can(t.toId)) out.push({ key: t.id, icon: 'repeat', tone: 'info', title: `Nhận hàng ${t.id}`, sub: `Từ ${whShort(db, t.fromId)} · xác nhận đã nhận`, route: '/(app)/(tabs)/internal' });
