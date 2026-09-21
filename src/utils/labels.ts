@@ -37,6 +37,7 @@ export const INCIDENT_TYPE: Record<string, { text: string; tone: Tone }> = {
 export const INCIDENT_STATUS: Record<string, { text: string; tone: Tone }> = {
   PENDING: { text: 'Chờ Xử Lý', tone: 'orange' },
   RECEIVED_DAMAGED: { text: 'Đã Nhận - Đang Sửa', tone: 'amber' },
+  UNREPAIRABLE: { text: 'Không Sửa Được - Chờ Thanh Lý', tone: 'rose' },
   REPAIRED: { text: 'Đã Sửa - Về Kho', tone: 'emerald' },
   LIQUIDATED: { text: 'Đã Thanh Lý', tone: 'slate' },
   COMPLETED: { text: 'Đã Thu Hồi', tone: 'emerald' },

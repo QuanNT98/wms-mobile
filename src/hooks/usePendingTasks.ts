@@ -14,7 +14,7 @@ export interface PendingTasks {
   ordersIn: number;      // đơn nhập chờ kho đích nhập kho
   ordersOut: number;     // đơn xuất chờ xuất kho / chờ nhận lại hàng trả về (kho nguồn) hoặc chờ xe xác nhận giao (xe)
   transfers: number;     // phiếu chuyển chờ kho đích nhận
-  incidents: number;     // báo cáo chờ xác nhận nhận hàng / chờ admin xác nhận mất / hàng hỏng chờ xử lý
+  incidents: number;     // báo cáo chờ xác nhận nhận hàng / chờ admin xác nhận mất / hàng hỏng chờ kho sửa / chờ admin thanh lý
   total: number;
 }
 
@@ -34,6 +34,8 @@ export function countPendingTasks(db: DB, user: User | null): PendingTasks {
     if (inc.status === 'PENDING') {
       if (inc.type === 'LOST' ? isAdmin(user) : can(inc.targetWarehouseId)) t.incidents++;
     } else if (inc.status === 'RECEIVED_DAMAGED' && can(inc.targetWarehouseId)) {
+      t.incidents++;
+    } else if (inc.status === 'UNREPAIRABLE' && isAdmin(user)) {
       t.incidents++;
     }
   });
@@ -66,7 +68,9 @@ export function buildPendingTasks(db: DB, user: User | null): PendingTask[] {
     if (inc.status === 'PENDING' && (inc.type === 'LOST' ? admin : can(inc.targetWarehouseId))) {
       out.push({ key: inc.id, icon: 'alert-triangle', tone: 'orange', title: `${label} ${inc.id}`, sub: `Từ ${whShort(db, inc.warehouseId)} · chờ xác nhận`, route: '/(app)/incidents' });
     } else if (inc.status === 'RECEIVED_DAMAGED' && can(inc.targetWarehouseId)) {
-      out.push({ key: inc.id, icon: 'tool', tone: 'warning', title: `Hàng hỏng ${inc.id}`, sub: `Tại ${whShort(db, inc.targetWarehouseId)} · sửa xong hoặc thanh lý`, route: '/(app)/incidents' });
+      out.push({ key: inc.id, icon: 'tool', tone: 'warning', title: `Hàng hỏng ${inc.id}`, sub: `Tại ${whShort(db, inc.targetWarehouseId)} · sửa xong hoặc báo không sửa được`, route: '/(app)/incidents' });
+    } else if (inc.status === 'UNREPAIRABLE' && admin) {
+      out.push({ key: inc.id, icon: 'trash-2', tone: 'danger', title: `Thanh lý ${inc.id}`, sub: `${whShort(db, inc.targetWarehouseId)} báo không sửa được · quyết định thanh lý`, route: '/(app)/incidents' });
     }
   });
   return out;

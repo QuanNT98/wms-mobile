@@ -25,7 +25,8 @@ export default function IncidentsScreen() {
     const confirmMsg: Partial<Record<IncidentAction, string>> = {
       CANCEL: 'Xác nhận hủy báo cáo này và hoàn lại hàng về tồn kho vị trí báo cáo?',
       REPAIR_DONE: 'Xác nhận đã sửa xong? Hàng sẽ được chuyển từ kho hàng hỏng về tồn kho bình thường.',
-      LIQUIDATE: 'Xác nhận THANH LÝ (không sửa được)? Hàng sẽ bị loại bỏ vĩnh viễn khỏi hệ thống, không thể hoàn tác.',
+      MARK_UNREPAIRABLE: 'Xác nhận hàng KHÔNG sửa được? Báo cáo sẽ chuyển cho Quản Trị Viên quyết định thanh lý.',
+      LIQUIDATE: 'Xác nhận THANH LÝ? Hàng sẽ bị loại bỏ vĩnh viễn khỏi hệ thống, không thể hoàn tác.',
     };
     const msg = confirmMsg[action];
     if (msg) {
@@ -43,7 +44,8 @@ export default function IncidentsScreen() {
   // Báo cáo đang chờ chính user này xử lý
   const isMine = (inc: typeof db.incidents[number]) => {
     if (inc.status === 'PENDING') return inc.type === 'LOST' ? (admin || canManageWarehouse(user, inc.warehouseId)) : (canManageWarehouse(user, inc.targetWarehouseId) || canManageWarehouse(user, inc.warehouseId));
-    if (inc.status === 'RECEIVED_DAMAGED') return admin || canManageWarehouse(user, inc.targetWarehouseId);
+    if (inc.status === 'RECEIVED_DAMAGED') return canManageWarehouse(user, inc.targetWarehouseId);
+    if (inc.status === 'UNREPAIRABLE') return admin;
     return false;
   };
   const mine = db.incidents.filter(isMine);
@@ -69,10 +71,15 @@ export default function IncidentsScreen() {
             if (!canConfirm && !canCancel) secondary = <Hint>Chờ kho nhận xác nhận</Hint>;
           }
         } else if (inc.status === 'RECEIVED_DAMAGED') {
-          const canRepair = canManageWarehouse(user, inc.targetWarehouseId);
-          if (canRepair) actions = <Button title="Sửa xong" size="sm" tone="success" icon="tool" onPress={() => resolve(inc.id, 'REPAIR_DONE')} />;
-          if (admin) secondary = <Button title="Thanh lý" size="sm" tone="danger" variant="soft" icon="trash-2" onPress={() => resolve(inc.id, 'LIQUIDATE')} />;
-          if (!canRepair && !admin) secondary = <Hint>Đang chờ xử lý sửa chữa</Hint>;
+          // Kho nhận quyết định kỹ thuật: sửa được -> về kho; không sửa được -> báo admin
+          if (canManageWarehouse(user, inc.targetWarehouseId)) {
+            actions = <Button title="Sửa xong" size="sm" tone="success" icon="tool" onPress={() => resolve(inc.id, 'REPAIR_DONE')} />;
+            secondary = <Button title="Không sửa được" size="sm" tone="danger" variant="soft" icon="x-circle" onPress={() => resolve(inc.id, 'MARK_UNREPAIRABLE')} />;
+          } else secondary = <Hint>Kho nhận đang sửa chữa</Hint>;
+        } else if (inc.status === 'UNREPAIRABLE') {
+          // Chỉ admin quyết định thanh lý
+          if (admin) actions = <Button title="Thanh lý" size="sm" tone="danger" icon="trash-2" onPress={() => resolve(inc.id, 'LIQUIDATE')} />;
+          else secondary = <Hint>Chờ Quản Trị Viên thanh lý</Hint>;
         }
         return (
           <OrderCard
@@ -91,11 +98,17 @@ export default function IncidentsScreen() {
         {damagedList.length === 0 ? <Text style={[st.note, { paddingTop: 4 }]}>Hiện không có hàng hỏng nào.</Text> : null}
         {damagedList.map((d) => {
           const prod = db.products.find((p) => p.sku === d.sku);
+          // Phần đã được kho báo không sửa được, đang chờ admin thanh lý
+          const awaitingLiquidation = db.incidents
+            .filter((inc) => inc.status === 'UNREPAIRABLE' && inc.targetWarehouseId === d.warehouseId)
+            .reduce((sum, inc) => sum + inc.items.filter((it) => it.sku === d.sku).reduce((x, it) => x + it.qty, 0), 0);
+          const repairing = Math.max(0, d.qty - awaitingLiquidation);
           return (
             <View key={`${d.warehouseId}-${d.sku}`} style={st.dmgRow}>
               <View style={{ flex: 1 }}>
                 <Text style={st.dmgName}>{prod?.name || d.sku} ({d.sku})</Text>
                 <Text style={st.dmgWh}>{whName(db, d.warehouseId)}</Text>
+                <Text style={st.dmgWh}>Đang sửa: {formatQty(repairing)}{awaitingLiquidation > 0 ? ` · Chờ thanh lý: ${formatQty(awaitingLiquidation)}` : ''}</Text>
               </View>
               <Text style={st.dmgQty}>{formatQty(d.qty)} {prod?.unit || ''}</Text>
             </View>

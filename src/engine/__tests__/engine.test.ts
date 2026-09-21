@@ -75,21 +75,35 @@ db = E.resolveIncident(db, khoC, db.incidents[0].id, 'CONFIRM');
 expect(db.incidents[0].status).toBe('RECEIVED_DAMAGED');
 expect(db.damagedStock.find(d => d.warehouseId === 'KH002' && d.sku === 'SKU-88')?.qty).toBe(3);
 expect(stock(db, 'KH002', 'SKU-88')).toBe(20);
-throws(() => E.resolveIncident(db, khoC, db.incidents[0].id, 'LIQUIDATE'), /Quản Trị Viên/);
+expect(E.resolveIncident(db, admin, db.incidents[0].id, 'LIQUIDATE')).toBe(db); // admin không được thanh lý khi kho chưa báo không sửa được
 db = E.resolveIncident(db, khoC, db.incidents[0].id, 'REPAIR_DONE');
 expect(db.incidents[0].status).toBe('REPAIRED');
 expect(stock(db, 'KH002', 'SKU-88')).toBe(23);
 expect(!db.damagedStock.find(d => d.warehouseId === 'KH002' && d.sku === 'SKU-88')).toBeTruthy();
 
+// Báo hỏng không sửa được: kho báo -> UNREPAIRABLE -> chỉ admin thanh lý
+db = E.createIncident(db, xeB, 'XE-01', 'DAMAGED', 'KH002', [{ sku: 'SKU-88', qty: 4 }], 'cháy');
+db = E.resolveIncident(db, khoC, db.incidents[0].id, 'CONFIRM');
+throws(() => E.resolveIncident(db, khoA, db.incidents[0].id, 'MARK_UNREPAIRABLE'), /kho nhận thu hồi/); // kho khác không được báo
+db = E.resolveIncident(db, khoC, db.incidents[0].id, 'MARK_UNREPAIRABLE');
+expect(db.incidents[0].status).toBe('UNREPAIRABLE');
+expect(db.damagedStock.find(d => d.warehouseId === 'KH002' && d.sku === 'SKU-88')?.qty).toBe(4); // vẫn nằm trong kho hỏng
+expect(E.resolveIncident(db, khoC, db.incidents[0].id, 'REPAIR_DONE')).toBe(db);           // đã báo hỏng thì không sửa lại được
+throws(() => E.resolveIncident(db, khoC, db.incidents[0].id, 'LIQUIDATE'), /Quản Trị Viên/);
+db = E.resolveIncident(db, admin, db.incidents[0].id, 'LIQUIDATE');
+expect(db.incidents[0].status).toBe('LIQUIDATED');
+expect(!db.damagedStock.find(d => d.warehouseId === 'KH002' && d.sku === 'SKU-88')).toBeTruthy();
+expect(stock(db, 'XE-01', 'SKU-88')).toBe(73);
+
 // Báo mất: chỉ admin xác nhận; hủy hoàn kho
 db = E.createIncident(db, xeB, 'XE-01', 'LOST', null, [{ sku: 'SKU-88', qty: 2 }], '');
 throws(() => E.resolveIncident(db, khoC, db.incidents[0].id, 'CONFIRM'), /Quản Trị Viên/);
 db = E.resolveIncident(db, xeB, db.incidents[0].id, 'CANCEL');
-expect(stock(db, 'XE-01', 'SKU-88')).toBe(77);
+expect(stock(db, 'XE-01', 'SKU-88')).toBe(73);
 db = E.createIncident(db, xeB, 'XE-01', 'LOST', null, [{ sku: 'SKU-88', qty: 2 }], '');
 db = E.resolveIncident(db, admin, db.incidents[0].id, 'CONFIRM');
 expect(db.incidents[0].status).toBe('CONFIRMED');
-expect(stock(db, 'XE-01', 'SKU-88')).toBe(75);
+expect(stock(db, 'XE-01', 'SKU-88')).toBe(71);
 
 // Danh mục admin
 throws(() => E.addOrUpdateDriver(db, khoA, '', 'XE-03', 'C', 'VEHICLE', '11A', '09'), /Quản Trị Viên/);

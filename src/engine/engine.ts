@@ -374,7 +374,13 @@ export function createIncident(
   return cleanup(db);
 }
 
-export type IncidentAction = 'CONFIRM' | 'CANCEL' | 'REPAIR_DONE' | 'LIQUIDATE';
+export type IncidentAction = 'CONFIRM' | 'CANCEL' | 'REPAIR_DONE' | 'MARK_UNREPAIRABLE' | 'LIQUIDATE';
+
+// Luồng hàng hỏng sau khi kho nhận (RECEIVED_DAMAGED):
+//   'REPAIR_DONE'       (kho nhận)  -> REPAIRED: hàng về tồn kho khả dụng
+//   'MARK_UNREPAIRABLE' (kho nhận)  -> UNREPAIRABLE: kho báo không sửa được, chờ Quản trị viên
+//   'LIQUIDATE'         (admin)     -> LIQUIDATED: chỉ từ UNREPAIRABLE, loại khỏi kho hàng hỏng
+// Quyền quyết định kỹ thuật (sửa được hay không) thuộc kho; quyền quyết định tài sản (thanh lý) thuộc admin.
 
 export function resolveIncident(db0: DB, user: User | null, incidentId: string, action: IncidentAction): DB {
   const db = cloneDB(db0);
@@ -417,8 +423,14 @@ export function resolveIncident(db0: DB, user: User | null, incidentId: string, 
     });
     inc.status = 'REPAIRED';
     inc.repairResolvedBy = uid;
-  } else if (action === 'LIQUIDATE') {
+  } else if (action === 'MARK_UNREPAIRABLE') {
     if (inc.type !== 'DAMAGED' || inc.status !== 'RECEIVED_DAMAGED') return db0;
+    if (!canManageWarehouse(user, inc.targetWarehouseId)) throw new Error('Chỉ người quản lý kho nhận thu hồi mới được báo không sửa được!');
+    // Hàng vẫn nằm trong kho hàng hỏng, chỉ đổi trạng thái để báo Quản trị viên quyết định thanh lý
+    inc.status = 'UNREPAIRABLE';
+    inc.repairResolvedBy = uid;
+  } else if (action === 'LIQUIDATE') {
+    if (inc.type !== 'DAMAGED' || inc.status !== 'UNREPAIRABLE') return db0;
     if (!isAdmin(user)) throw new Error('Chỉ Quản Trị Viên mới được thanh lý hàng hỏng không sửa được!');
     for (const item of inc.items) {
       const dmg = db.damagedStock.find((i) => i.warehouseId === inc.targetWarehouseId && i.sku === item.sku);
@@ -426,7 +438,7 @@ export function resolveIncident(db0: DB, user: User | null, incidentId: string, 
     }
     inc.items.forEach((item) => addStock(db.damagedStock, inc.targetWarehouseId!, item.sku, -item.qty));
     inc.status = 'LIQUIDATED';
-    inc.repairResolvedBy = uid;
+    inc.resolvedBy = uid;
   }
   return cleanup(db);
 }

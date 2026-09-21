@@ -96,6 +96,7 @@ export type IncidentType = 'LOST' | 'DAMAGED' | 'RETURN';
 export type IncidentStatus =
   | 'PENDING'
   | 'RECEIVED_DAMAGED'
+  | 'UNREPAIRABLE'      // kho báo không sửa được -> chờ Quản trị viên thanh lý
   | 'REPAIRED'
   | 'LIQUIDATED'
   | 'COMPLETED'
