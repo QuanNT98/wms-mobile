@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import { DB, User } from '@/types';
-import { INITIAL_DATA } from '@/data/initialData';
+import { INITIAL_DATA, makeBlankData } from '@/data/initialData';
 import { loadCurrentUserId, loadDB, persistCurrentUserId, persistDB } from '@/store/storage';
 import { cloneDB } from '@/utils/clone';
 import { isAdmin } from '@/engine/permissions';
@@ -17,7 +17,8 @@ interface DbContextValue {
   logout: () => void;
   // Chạy 1 hàm nghiệp vụ từ engine; tự lưu + hiển thị lỗi. Trả về true nếu thành công.
   mutate: (fn: Mutator, successMessage?: string) => boolean;
-  resetData: () => void;
+  // 'DEMO' = khôi phục bộ dữ liệu mẫu; 'BLANK' = xóa sạch, chỉ giữ tài khoản admin hiện tại
+  resetData: (mode: 'DEMO' | 'BLANK') => void;
 }
 
 const DbContext = createContext<DbContextValue | null>(null);
@@ -78,12 +79,23 @@ export function DbProvider({ children }: { children: React.ReactNode }) {
     }
   }, [userId, commit, toast]);
 
-  const resetData = useCallback(() => {
-    if (!isAdmin(user)) { toast.error('Chỉ Quản Trị Viên mới được đặt lại dữ liệu!'); return; }
-    Alert.alert('Đặt lại dữ liệu', 'Khôi phục toàn bộ dữ liệu về trạng thái ban đầu?', [
-      { text: 'Hủy', style: 'cancel' },
-      { text: 'Đặt lại', style: 'destructive', onPress: () => { commit(cloneDB(INITIAL_DATA)); toast.success('Đã khôi phục dữ liệu ban đầu'); } },
-    ]);
+  const resetData = useCallback((mode: 'DEMO' | 'BLANK') => {
+    if (!user || !isAdmin(user)) { toast.error('Chỉ Quản Trị Viên mới được đặt lại dữ liệu!'); return; }
+    if (mode === 'DEMO') {
+      Alert.alert('Đặt lại dữ liệu demo', 'Khôi phục toàn bộ dữ liệu về bộ mẫu ban đầu? Dữ liệu hiện tại sẽ bị thay thế.', [
+        { text: 'Hủy', style: 'cancel' },
+        { text: 'Đặt lại', style: 'destructive', onPress: () => { commit(cloneDB(INITIAL_DATA)); toast.success('Đã khôi phục dữ liệu demo'); } },
+      ]);
+      return;
+    }
+    Alert.alert(
+      'Danh sách trắng',
+      `Xóa TOÀN BỘ dữ liệu (kho, sản phẩm, đối tác, xe, tồn kho, chứng từ, tài khoản khác) để tự nhập lại từ đầu?\n\nChỉ giữ lại tài khoản đang đăng nhập: ${user.username}.`,
+      [
+        { text: 'Hủy', style: 'cancel' },
+        { text: 'Xóa & bắt đầu trắng', style: 'destructive', onPress: () => { commit(makeBlankData(user)); toast.success('Đã tạo danh sách trắng, hãy thêm kho & sản phẩm để bắt đầu'); } },
+      ],
+    );
   }, [user, commit, toast]);
 
   const value = useMemo<DbContextValue>(() => ({ db, user, ready, login, logout, mutate, resetData }), [db, user, ready, login, logout, mutate, resetData]);

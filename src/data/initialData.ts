@@ -1,4 +1,4 @@
-import { DB } from '@/types';
+import { DB, User } from '@/types';
 
 // Thời điểm tương đối so với hôm nay để dữ liệu demo luôn "mới"
 const at = (daysAgo: number, hour = 9, minute = 0) => {
@@ -128,6 +128,16 @@ export const INITIAL_DATA: DB = {
     { warehouseId: 'KH002', sku: 'SKU-102', qty: 2 },
   ],
 };
+
+// Danh sách trắng: khách hàng tự nhập dữ liệu của mình để dùng thử.
+// Tài khoản admin sẽ được giữ lại từ người đang thực hiện đặt lại (xem DbContext.resetData).
+export function makeBlankData(admin: User): DB {
+  return {
+    users: [{ ...admin, role: 'ADMIN', warehouseId: null }],
+    partners: [], drivers: [], warehouses: [], products: [], inventory: [],
+    ordersIn: [], ordersOut: [], transfers: [], incidents: [], damagedStock: [],
+  };
+}
 
 export const DEMO_ACCOUNTS = [
   { username: 'admin', password: 'admin123', label: 'Quản Trị Viên', badge: 'QT', color: 'danger' as const },

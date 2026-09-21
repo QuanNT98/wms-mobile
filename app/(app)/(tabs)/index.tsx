@@ -45,6 +45,37 @@ function TaskList({ tasks }: { tasks: PendingTask[] }) {
   );
 }
 
+// Hiện cho admin khi dữ liệu còn trắng (sau "Danh sách trắng"): gợi ý thứ tự nhập dữ liệu để dùng thử
+function SetupGuide({ db }: { db: DB }) {
+  const router = useRouter();
+  const steps: { done: boolean; title: string; sub: string; icon: IconName; route: string }[] = [
+    { done: db.warehouses.length > 0, title: 'Thêm kho / bãi', sub: 'Điểm lưu hàng cố định của bạn', icon: 'map-pin', route: '/(app)/catalog/locations/new' },
+    { done: db.products.length > 0, title: 'Thêm sản phẩm', sub: 'SKU, đơn vị tính, giá tham khảo', icon: 'package', route: '/(app)/catalog/products/new' },
+    { done: db.partners.length > 0, title: 'Thêm đối tác / khách hàng', sub: 'Nhà cung cấp để nhập, khách hàng để xuất', icon: 'users', route: '/(app)/catalog/partners/new' },
+    { done: db.drivers.length > 0, title: 'Thêm nhân viên / xe', sub: 'Kho di động để giao hàng (không bắt buộc)', icon: 'truck', route: '/(app)/catalog/fleet/new' },
+    { done: db.users.length > 1, title: 'Tạo tài khoản quản lý kho', sub: 'Gán mỗi tài khoản cho 1 kho / xe', icon: 'shield', route: '/(app)/catalog/users/new' },
+  ];
+  const remaining = steps.filter((x) => !x.done).length;
+  if (remaining === 0) return null;
+  return (
+    <>
+      <SectionHeader title="Bắt đầu sử dụng" count={remaining} />
+      <Card padded={false}>
+        {steps.map((st, i) => (
+          <TouchableOpacity key={st.route} style={[s.task, i < steps.length - 1 && s.taskBorder, st.done && { opacity: 0.5 }]} activeOpacity={0.7} onPress={() => router.push(st.route as never)} disabled={st.done}>
+            <IconChip icon={st.done ? 'check' : st.icon} tone={st.done ? 'success' : 'primary'} size={40} />
+            <View style={{ flex: 1 }}>
+              <Text style={[type.body, st.done && { textDecorationLine: 'line-through' }]}>{st.title}</Text>
+              <Text style={type.caption} numberOfLines={2}>{st.sub}</Text>
+            </View>
+            {!st.done ? <Feather name="chevron-right" size={18} color={colors.textMuted} /> : null}
+          </TouchableOpacity>
+        ))}
+      </Card>
+    </>
+  );
+}
+
 function QuickActions() {
   const router = useRouter();
   const actions: { title: string; icon: IconName; tone: Tone; route: string }[] = [
@@ -136,6 +167,7 @@ export default function DashboardScreen() {
   const totalItems = db.inventory.reduce((sum, i) => sum + i.qty, 0);
   return (
     <Screen>
+      <SetupGuide db={db} />
       <View style={s.grid}>
         <StatCard icon="users" label="Đối tác & khách hàng" value={`${db.partners.length}`} tone="violet" />
         <StatCard icon="truck" label="Xe / nhân viên" value={`${db.drivers.length}`} tone="primary" />

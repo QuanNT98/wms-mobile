@@ -10,7 +10,9 @@ import { Button, fieldStyles as ui } from '@/components/ui';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const { login } = useDb();
+  const { db, login } = useDb();
+  // Sau khi "Danh sách trắng", các tài khoản demo không còn -> ẩn nút đăng nhập nhanh tương ứng
+  const demoAccounts = DEMO_ACCOUNTS.filter((acc) => db.users.some((u) => u.username === acc.username && u.password === acc.password));
   const toast = useToast();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -59,10 +61,11 @@ export default function LoginScreen() {
             <Button title="Đăng nhập" onPress={() => submit()} icon="arrow-right" />
           </View>
 
+          {demoAccounts.length > 0 ? (<>
           <View style={s.dividerRow}><View style={s.dividerLine} /><Text style={type.overline}>TÀI KHOẢN DEMO</Text><View style={s.dividerLine} /></View>
 
           <View style={{ gap: 8 }}>
-            {DEMO_ACCOUNTS.map((acc) => {
+            {demoAccounts.map((acc) => {
               const c = tone(acc.color);
               return (
                 <TouchableOpacity key={acc.username} style={s.demoBtn} onPress={() => submit(acc.username, acc.password)} activeOpacity={0.7}>
@@ -76,6 +79,7 @@ export default function LoginScreen() {
               );
             })}
           </View>
+          </>) : null}
         </ScrollView>
       </KeyboardAvoidingView>
     </View>

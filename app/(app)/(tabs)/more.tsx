@@ -74,15 +74,25 @@ export default function MoreScreen() {
       {admin ? (<><SectionHeader title="Danh mục & quản trị" /><MenuList items={adminItems} /></>) : null}
 
       {admin ? (
-        <Card padded={false}>
-          <TouchableOpacity style={s.row} activeOpacity={0.7} onPress={resetData}>
-            <IconChip icon="rotate-ccw" tone="neutral" size={40} />
-            <View style={{ flex: 1 }}>
-              <Text style={type.body}>Đặt lại dữ liệu demo</Text>
-              <Text style={type.caption}>Khôi phục toàn bộ về trạng thái ban đầu</Text>
-            </View>
-          </TouchableOpacity>
-        </Card>
+        <>
+          <SectionHeader title="Dữ liệu" />
+          <Card padded={false}>
+            <TouchableOpacity style={[s.row, s.rowBorder]} activeOpacity={0.7} onPress={() => resetData('DEMO')}>
+              <IconChip icon="rotate-ccw" tone="neutral" size={40} />
+              <View style={{ flex: 1 }}>
+                <Text style={type.body}>Đặt lại dữ liệu demo</Text>
+                <Text style={type.caption}>Khôi phục bộ dữ liệu mẫu để xem thử</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.row} activeOpacity={0.7} onPress={() => resetData('BLANK')}>
+              <IconChip icon="file" tone="warning" size={40} />
+              <View style={{ flex: 1 }}>
+                <Text style={type.body}>Danh sách trắng</Text>
+                <Text style={type.caption}>Xóa toàn bộ dữ liệu mẫu, tự nhập dữ liệu của bạn để dùng thử</Text>
+              </View>
+            </TouchableOpacity>
+          </Card>
+        </>
       ) : null}
 
       <TouchableOpacity style={s.logout} onPress={confirmLogout} activeOpacity={0.7}>
