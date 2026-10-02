@@ -7,6 +7,8 @@
  *   _ts   thời điểm ghi – khi hai máy cùng tạo một khoá, dòng ghi sau thắng
  *   _rec  id gốc của chính dòng đó, để máy khác sửa lại được (xem updateRow)
  *   _del  true = đã xoá. Không xoá dòng thật: xoá dòng làm hỏng bảng trên server này.
+ *
+ * Bảng `users` không chứa mật khẩu: mật khẩu do tài khoản inka giữ (xem services/inka.ts).
  */
 import type { DB } from '@/types';
 import { createRow, listRows, updateRow, type Row } from '@/services/inka';
@@ -53,6 +55,7 @@ export function rowsToEntities(collection: Collection, rows: Row[]): { entities:
   const live: { seq: number; entity: Entity }[] = [];
   for (const [key, row] of latest) {
     const { _key, _seq, _ts, _rec, _del, ...entity } = row.content;
+    if (collection === 'users') entity.password = '';
     const seq = num(_seq);
     const deleted = _del === true;
     refs.set(key, { rec: typeof _rec === 'string' && _rec ? _rec : row.rc_id, seq, deleted });
@@ -87,6 +90,8 @@ export function diffDb(prev: DB, next: DB): Change[] {
   return changes;
 }
 
+const withoutPassword = ({ password: _password, ...rest }: Entity): Entity => rest;
+
 /** Tải toàn bộ DB từ server. */
 export async function pull(): Promise<{ db: DB; refs: Refs }> {
   const results = await Promise.all(COLLECTIONS.map(async (c) => rowsToEntities(c, await listRows(INKA.tables[c]))));
@@ -105,7 +110,8 @@ export async function pull(): Promise<{ db: DB; refs: Refs }> {
  */
 export async function push(changes: Change[], refs: Refs): Promise<void> {
   let seq = Date.now();
-  for (const { collection, key, entity } of changes) {
+  for (const { collection, key, entity: raw } of changes) {
+    const entity = raw && collection === 'users' ? withoutPassword(raw) : raw;
     const ref = refs[collection].get(key);
     if (!entity) {
       if (!ref || ref.deleted) continue;

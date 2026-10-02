@@ -6,7 +6,7 @@ import { loadCurrentUserId, loadDB, persistCurrentUserId, persistDB } from '@/st
 import { cloneDB } from '@/utils/clone';
 import { isAdmin } from '@/engine/permissions';
 import { useToast } from '@/components/layout/Toast';
-import { inkaMessage } from '@/services/inka';
+import { InkaError, inkaMessage, signIn, signOut, signUp } from '@/services/inka';
 import { serverEnabled } from '@/services/inkaConfig';
 import { diffDb, emptyRefs, pull, push, type Refs } from '@/store/sync';
 
@@ -29,7 +29,11 @@ interface DbContextValue {
   db: DB;
   user: User | null;
   ready: boolean;
-  login: (username: string, password: string) => boolean;
+  // Trả về null nếu đăng nhập được, hoặc thông báo lỗi để hiển thị.
+  // Khi dùng máy chủ: đăng nhập bằng tài khoản inka (mất ~6 giây), quyền lấy từ bảng users.
+  login: (username: string, password: string) => Promise<string | null>;
+  // Tạo tài khoản đăng nhập trên máy chủ cho người dùng mới; null = xong (hoặc không dùng máy chủ)
+  createAccount: (username: string, password: string) => Promise<string | null>;
   logout: () => void;
   // Chạy 1 hàm nghiệp vụ từ engine; tự lưu + hiển thị lỗi. Trả về true nếu thành công.
   mutate: (fn: Mutator, successMessage?: string) => boolean;
@@ -88,6 +92,7 @@ export function DbProvider({ children }: { children: React.ReactNode }) {
     if (dirtyRef.current) return;
     refsRef.current = refs;
     syncedRef.current = remote;
+    dbRef.current = remote;
     setSync((v) => (v.connected ? v : { ...v, connected: true }));
     if (JSON.stringify(remote) !== JSON.stringify(dbRef.current)) {
       setDb(remote);
@@ -130,7 +135,9 @@ export function DbProvider({ children }: { children: React.ReactNode }) {
   // User đang đăng nhập luôn được tra lại từ db để phản ánh chỉnh sửa tài khoản mới nhất
   const user = useMemo(() => (userId ? db.users.find((u) => u.id === userId) ?? null : null), [db.users, userId]);
 
-  const commit = useCallback((next: DB) => {
+  const commit = useCallback((input: DB) => {
+    // Mật khẩu do máy chủ giữ: không để trong dữ liệu của app
+    const next = serverEnabled() ? { ...input, users: input.users.map((u) => ({ ...u, password: '' })) } : input;
     dbRef.current = next;
     setDb(next);
     persistDB(next).catch(() => {});
@@ -147,18 +154,49 @@ export function DbProvider({ children }: { children: React.ReactNode }) {
     return false;
   }, [toast, refresh]);
 
-  const login = useCallback((username: string, password: string) => {
+  const login = useCallback(async (username: string, password: string) => {
     const uname = username.trim().toLowerCase();
-    const found = dbRef.current.users.find((u) => u.username === uname && u.password === password);
-    if (!found) return false;
-    setUserId(found.id);
-    persistCurrentUserId(found.id).catch(() => {});
-    return true;
-  }, []);
+    const enter = (id: string) => {
+      setUserId(id);
+      persistCurrentUserId(id).catch(() => {});
+      return null;
+    };
+    if (!serverEnabled()) {
+      const local = dbRef.current.users.find((u) => u.username === uname && u.password === password);
+      return local ? enter(local.id) : 'Sai tên đăng nhập hoặc mật khẩu';
+    }
+    try {
+      await signIn(uname, password);
+    } catch (e) {
+      return inkaMessage(e);
+    }
+    // Vai trò và kho phụ trách lấy từ bảng users mới nhất trên máy chủ
+    await refresh();
+    if (!syncedRef.current) return 'Đăng nhập được nhưng chưa tải được dữ liệu. Kiểm tra mạng rồi thử lại.';
+    const found = dbRef.current.users.find((u) => u.username === uname);
+    if (!found) {
+      signOut().catch(() => {});
+      return 'Tài khoản này chưa được cấp quyền dùng ứng dụng';
+    }
+    return enter(found.id);
+  }, [refresh]);
 
   const logout = useCallback(() => {
     setUserId(null);
     persistCurrentUserId(null).catch(() => {});
+    if (serverEnabled()) signOut().catch(() => {});
+  }, []);
+
+  const createAccount = useCallback(async (username: string, password: string) => {
+    if (!serverEnabled()) return null;
+    try {
+      await signUp(username.trim().toLowerCase(), password);
+      return null;
+    } catch (e) {
+      // Tài khoản đã có trên máy chủ (vd. người dùng từng bị xoá khỏi app): dùng lại, mật khẩu giữ như cũ
+      if (e instanceof InkaError && e.code === 'user_exists') return null;
+      return inkaMessage(e);
+    }
   }, []);
 
   const mutate = useCallback((fn: Mutator, successMessage?: string) => {
@@ -198,7 +236,7 @@ export function DbProvider({ children }: { children: React.ReactNode }) {
     );
   }, [user, commit, toast, assertConnected]);
 
-  const value = useMemo<DbContextValue>(() => ({ db, user, ready, login, logout, mutate, resetData, sync, refresh }), [db, user, ready, login, logout, mutate, resetData, sync, refresh]);
+  const value = useMemo<DbContextValue>(() => ({ db, user, ready, login, createAccount, logout, mutate, resetData, sync, refresh }), [db, user, ready, login, createAccount, logout, mutate, resetData, sync, refresh]);
 
   return <DbContext.Provider value={value}>{children}</DbContext.Provider>;
 }

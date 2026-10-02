@@ -50,6 +50,11 @@ describe('rowsToEntities', () => {
     expect(refs.get('S0')?.rec).toBe('r4');
   });
 
+  it('bảng users không mang mật khẩu', () => {
+    const { entities } = rowsToEntities('users', [{ rc_id: 'u', content: { _key: 'U-1', _seq: 1, _ts: 1, id: 'U-1', username: 'a' } }]);
+    expect(entities[0]).toEqual({ id: 'U-1', username: 'a', password: '' });
+  });
+
   it('chứng từ xếp mới nhất trước', () => {
     const { entities } = rowsToEntities('ordersIn', [
       { rc_id: 'a', content: { _key: 'IN-1', _seq: 1, _ts: 1, id: 'IN-1' } },
@@ -68,6 +73,13 @@ describe('push', () => {
     expect(createRow).toHaveBeenCalledTimes(1);
     expect((createRow as jest.Mock).mock.calls[0][1]).toMatchObject({ sku: 'S1', name: 'A', _key: 'S1' });
     expect(refs.products.get('S1')).toMatchObject({ rec: 'new-rec', deleted: false });
+  });
+
+  it('không gửi mật khẩu người dùng lên máy chủ', async () => {
+    await push([{ collection: 'users', key: 'U-1', entity: { id: 'U-1', username: 'a', password: 'secret' } }], emptyRefs());
+    const sent = (createRow as jest.Mock).mock.calls[0][1];
+    expect(sent).toMatchObject({ id: 'U-1', username: 'a' });
+    expect(sent.password).toBeUndefined();
   });
 
   it('sửa qua id gốc, xoá bằng cách đánh dấu, và làm sống lại khoá đã xoá', async () => {

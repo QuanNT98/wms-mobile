@@ -8,7 +8,7 @@
  * Chạy lại an toàn: bảng đã có thì dùng lại, bảng đã có dòng thì không nạp lại dữ liệu mẫu.
  *
  * Mỗi bảng của DB (users, products, inventory, ordersIn…) là một bảng cùng tên; mỗi phần tử là một dòng
- * kèm _key/_seq/_ts (xem src/store/sync.ts). Cờ quyền của inka: true = mọi tài khoản đã đăng nhập đều làm được.
+ * kèm _key/_seq/_ts (xem src/store/sync.ts). Người dùng mẫu được tạo thành tài khoản inka "wmsu_<tên đăng nhập>". Cờ quyền của inka: true = mọi tài khoản đã đăng nhập đều làm được.
  * App đọc/ghi bằng tài khoản khách nên đọc, thêm, sửa đều bật; xoá tắt (xoá dòng làm hỏng bảng trên server này).
  */
 import { Buffer } from 'node:buffer';
@@ -27,6 +27,8 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DB_NAME = 'wms_demo';
 const AUTH = { read: true, write: true, edit: true, delete: false };
 const MAX_ROW_BYTES = 900; // server từ chối dòng khoảng 1 KB trở lên
+// Tên tài khoản inka của người dùng WMS = tiền tố + tên đăng nhập trong app (giữ khớp với src/services/inka.ts)
+const ACCOUNT_PREFIX = 'wmsu_';
 
 /* ── dữ liệu mẫu của app (initialData.ts chỉ import kiểu, nên dịch ra JS rồi nạp trực tiếp) ── */
 const js = ts.transpileModule(readFileSync(join(ROOT, 'src/data/initialData.ts'), 'utf8'), {
@@ -44,12 +46,17 @@ const keyOf = (collection, e) =>
 function seedRows(collection) {
   const list = INITIAL_DATA[collection];
   const now = Date.now();
-  return list.map((entity, i) => ({
+  return list.map((full, i) => {
+    // Mật khẩu do tài khoản inka giữ, không nằm trong bảng users
+    const { password: _password, ...withoutPassword } = full;
+    const entity = collection === 'users' ? withoutPassword : full;
+    return {
     ...entity,
     _key: keyOf(collection, entity),
     _seq: NEWEST_FIRST.includes(collection) ? list.length - i : i + 1,
     _ts: now,
-  }));
+    };
+  });
 }
 
 const columnType = (v) => (typeof v === 'number' ? 'number' : typeof v === 'boolean' ? 'boolean' : v !== null && typeof v === 'object' ? 'json' : 'string');
@@ -164,6 +171,32 @@ for (const name of COLLECTIONS) {
     seeded = `thêm ${rows.length} dòng`;
   }
   console.log(`  ${created ? '+' : '='} ${name.padEnd(13)} ${tblId}, ${seeded}${displaced ? ', đã sửa lại dòng schema' : ''}`);
+}
+
+/* ── 2b. bảng users cũ còn cột mật khẩu → ghi lại dòng không có mật khẩu (sửa qua id gốc) ── */
+const userRows = list(await api('GET', 'record', ids.users, { query: '?limit=255' })).filter((r) => !isSchema(r.content) && 'password' in r.content);
+for (const row of userRows) {
+  const { password: _password, ...content } = row.content;
+  const rec = content._rec || row.rc_id;
+  const r = await api('PUT', 'record', rec, { body: { ...content, _rec: rec, _ts: Date.now() } });
+  if (!ok(r)) fail(`bỏ mật khẩu khỏi dòng ${content._key}`, r);
+}
+if (userRows.length) console.log(`  đã bỏ mật khẩu khỏi ${userRows.length} dòng trong bảng users`);
+
+/* ── 2c. tài khoản đăng nhập trên inka cho người dùng mẫu ── */
+console.log('2c. Tài khoản đăng nhập…');
+for (const u of INITIAL_DATA.users) {
+  // Phiên riêng, không cookie: đăng ký không được đụng tới phiên admin đang dùng ở trên
+  const res = await fetch('http://inka.vn:8000/api/sign-up/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: ACCOUNT_PREFIX + u.username, password: u.password }),
+    signal: AbortSignal.timeout(30000),
+  });
+  const r = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+  const state = r.success ? 'đã tạo' : r.error === 'user_exists' ? 'đã có' : `LỖI ${r.error}`;
+  console.log(`  ${(ACCOUNT_PREFIX + u.username).padEnd(16)} ${state}`);
+  if (!r.success && r.error !== 'user_exists') fail(`tạo tài khoản ${u.username}`, r);
 }
 
 /* ── 3. ghi cấu hình ── */

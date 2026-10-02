@@ -10,18 +10,25 @@ import { Button, fieldStyles as ui } from '@/components/ui';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const { db, login } = useDb();
+  const { db, login, sync } = useDb();
   // Sau khi "Danh sách trắng", các tài khoản demo không còn -> ẩn nút đăng nhập nhanh tương ứng
-  const demoAccounts = DEMO_ACCOUNTS.filter((acc) => db.users.some((u) => u.username === acc.username && u.password === acc.password));
+  // (khi dùng máy chủ, mật khẩu không nằm trong dữ liệu nên chỉ so tên đăng nhập)
+  const demoAccounts = DEMO_ACCOUNTS.filter((acc) => db.users.some((u) => u.username === acc.username && (sync.enabled || u.password === acc.password)));
   const toast = useToast();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [focus, setFocus] = useState<'u' | 'p' | null>(null);
+  // Đăng nhập qua máy chủ mất vài giây: khoá nút trong lúc chờ
+  const [busy, setBusy] = useState(false);
 
-  const submit = (u = username, p = password) => {
+  const submit = async (u = username, p = password) => {
+    if (busy) return;
     if (!u.trim() || !p) { toast.error('Vui lòng nhập tên đăng nhập và mật khẩu'); return; }
-    if (!login(u, p)) { toast.error('Sai tên đăng nhập hoặc mật khẩu'); return; }
+    setBusy(true);
+    const error = await login(u, p);
+    setBusy(false);
+    if (error) { toast.error(error); return; }
     setUsername(''); setPassword('');
   };
 
@@ -58,7 +65,7 @@ export default function LoginScreen() {
                 <TouchableOpacity onPress={() => setShowPw((v) => !v)} hitSlop={8}><Feather name={showPw ? 'eye-off' : 'eye'} size={16} color={colors.textMuted} /></TouchableOpacity>
               </View>
             </View>
-            <Button title="Đăng nhập" onPress={() => submit()} icon="arrow-right" />
+            <Button title={busy ? 'Đang đăng nhập…' : 'Đăng nhập'} onPress={() => submit()} icon="arrow-right" disabled={busy} />
           </View>
 
           {demoAccounts.length > 0 ? (<>
@@ -68,7 +75,7 @@ export default function LoginScreen() {
             {demoAccounts.map((acc) => {
               const c = tone(acc.color);
               return (
-                <TouchableOpacity key={acc.username} style={s.demoBtn} onPress={() => submit(acc.username, acc.password)} activeOpacity={0.7}>
+                <TouchableOpacity key={acc.username} style={[s.demoBtn, busy && { opacity: 0.45 }]} disabled={busy} onPress={() => submit(acc.username, acc.password)} activeOpacity={0.7}>
                   <View style={[s.avatar, { backgroundColor: c.soft }]}><Text style={[s.avatarText, { color: c.text }]}>{acc.badge}</Text></View>
                   <View style={{ flex: 1 }}>
                     <Text style={s.demoLabel} numberOfLines={1}>{acc.label}</Text>

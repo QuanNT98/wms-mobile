@@ -2,14 +2,21 @@
  * Client tối giản cho API inka.vn.
  *
  * URL: http://inka.vn:{8000 + (hex(root) & 0x3F)}/api/{ctrl}/{root}{query} – cổng chọn theo id gốc.
- * Phiên đăng nhập là cookie `auth_token` (http.ts lo việc giữ cookie). App dùng tài khoản khách
- * (`/api/try-now/`) để đọc/ghi; tài khoản WMS (admin, qlkho1…) là dữ liệu trong bảng `users`.
+ * Phiên đăng nhập là cookie `auth_token` (http.ts lo việc giữ cookie).
+ *
+ * Người dùng WMS là tài khoản inka: tên đăng nhập "admin" trong app ứng với tài khoản inka
+ * "wmsu_admin" (tên tài khoản inka dùng chung cho mọi app nên phải có tiền tố). Mật khẩu do inka giữ;
+ * vai trò và kho phụ trách nằm trong bảng `users`. Trước khi đăng nhập app đọc dữ liệu bằng phiên khách.
  */
-import { httpRequest } from '@/services/http';
+import { clearCookies, httpRequest } from '@/services/http';
 
 const HOST = 'http://inka.vn';
 const BASE_PORT = 8000;
 const TIMEOUT_MS = 8000;
+// Đăng nhập / đăng ký mất ~6 giây phía server
+const AUTH_TIMEOUT_MS = 20000;
+
+export const ACCOUNT_PREFIX = 'wmsu_';
 
 /** Mã lỗi server trả về (forbidden, data_too_large…) hoặc lỗi mạng. */
 export class InkaError extends Error {
@@ -26,13 +33,13 @@ const base = (root = '') => {
   }
 };
 
-async function send(url: string, method: string, body?: unknown): Promise<any> {
+async function send(url: string, method: string, body?: unknown, timeoutMs = TIMEOUT_MS): Promise<any> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await httpRequest(url, {
       method,
-      timeoutMs: TIMEOUT_MS,
+      timeoutMs,
       signal: controller.signal,
       ...(body !== undefined && { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
     });
@@ -53,6 +60,32 @@ async function send(url: string, method: string, body?: unknown): Promise<any> {
 async function guestSignIn(): Promise<void> {
   const r = await send(`${base()}/try-now/`, 'POST');
   if (!r?.success) throw new InkaError(r?.error || 'sign_in_failed');
+}
+
+async function account(kind: 'sign-in' | 'sign-up', username: string, password: string): Promise<void> {
+  // Cookie cũ khiến server coi đây là thao tác trên phiên cũ
+  await clearCookies();
+  const r = await send(`${base()}/${kind}/`, 'POST', { username: ACCOUNT_PREFIX + username, password }, AUTH_TIMEOUT_MS);
+  if (!r?.success) throw new InkaError(r?.error || `${kind}_failed`);
+}
+
+/** Đăng nhập tài khoản inka của người dùng WMS. Ném InkaError('wrong_password' | 'user_not_found' | …). */
+export const signIn = (username: string, password: string) => account('sign-in', username, password);
+
+/**
+ * Tạo tài khoản inka cho người dùng WMS mới. Sau lệnh này cookie là phiên của tài khoản vừa tạo;
+ * không sao vì mọi phiên đều đọc/ghi được các bảng, còn "ai đang dùng app" do app tự giữ.
+ */
+export const signUp = (username: string, password: string) => account('sign-up', username, password);
+
+export async function signOut(): Promise<void> {
+  try {
+    await send(`${base()}/logout/`, 'POST');
+  } catch {
+    // Mất mạng: vẫn bỏ phiên trên máy
+  }
+  // Server xoá cookie bằng thuộc tính Secure trên http nên máy bỏ qua; tự xoá
+  await clearCookies();
 }
 
 // Server trả các mã này khi chưa có / hết phiên
@@ -117,5 +150,8 @@ const MESSAGES: Record<string, string> = {
   timeout: 'Máy chủ phản hồi quá chậm',
   forbidden: 'Máy chủ từ chối thao tác',
   data_too_large: 'Chứng từ quá nhiều dòng hàng, máy chủ không lưu được',
+  wrong_password: 'Sai tên đăng nhập hoặc mật khẩu',
+  user_not_found: 'Sai tên đăng nhập hoặc mật khẩu',
+  user_exists: 'Tên đăng nhập này đã có tài khoản trên máy chủ',
 };
 export const inkaMessage = (e: unknown) => (e instanceof InkaError ? MESSAGES[e.code] ?? `Lỗi máy chủ: ${e.code}` : e instanceof Error ? e.message : String(e));
