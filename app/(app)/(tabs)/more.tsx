@@ -33,7 +33,17 @@ function MenuList({ items }: { items: Item[] }) {
 }
 
 export default function MoreScreen() {
-  const { db, user, logout, resetData } = useDb();
+  const { db, user, logout, resetData, sync, refresh } = useDb();
+  // Bấm vào dòng trạng thái ở cuối màn để đồng bộ lại ngay
+  const syncLabel = !sync.enabled
+    ? 'dữ liệu lưu trên máy'
+    : sync.error
+      ? `chưa đồng bộ: ${sync.error}`
+      : sync.busy
+        ? 'đang đồng bộ…'
+        : sync.connected
+          ? 'đã đồng bộ với máy chủ'
+          : 'đang kết nối máy chủ…';
   const admin = isAdmin(user);
   const tasks = usePendingTaskCounts();
   const managed = user?.warehouseId ? db.warehouses.find((w) => w.id === user.warehouseId) : null;
@@ -99,7 +109,9 @@ export default function MoreScreen() {
         <Feather name="log-out" size={16} color={colors.danger} />
         <Text style={s.logoutText}>Đăng xuất</Text>
       </TouchableOpacity>
-      <Text style={[type.caption, { textAlign: 'center' }]}>Quản Lý Kho v1.0 · dữ liệu lưu trên máy</Text>
+      <TouchableOpacity onPress={refresh} disabled={!sync.enabled} activeOpacity={0.7}>
+        <Text style={[type.caption, { textAlign: 'center' }, sync.error ? { color: colors.danger } : null]}>Quản Lý Kho v1.0 · {syncLabel}</Text>
+      </TouchableOpacity>
     </Screen>
   );
 }

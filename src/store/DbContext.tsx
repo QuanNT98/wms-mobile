@@ -1,11 +1,27 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, AppState } from 'react-native';
 import { DB, User } from '@/types';
 import { INITIAL_DATA, makeBlankData } from '@/data/initialData';
 import { loadCurrentUserId, loadDB, persistCurrentUserId, persistDB } from '@/store/storage';
 import { cloneDB } from '@/utils/clone';
 import { isAdmin } from '@/engine/permissions';
 import { useToast } from '@/components/layout/Toast';
+import { inkaMessage } from '@/services/inka';
+import { serverEnabled } from '@/services/inkaConfig';
+import { diffDb, emptyRefs, pull, push, type Refs } from '@/store/sync';
+
+// Tải lại từ máy chủ định kỳ để thấy thao tác của thiết bị khác
+const POLL_MS = 15000;
+
+export interface SyncStatus {
+  /** false = app chỉ lưu trên máy (chưa cấu hình máy chủ) */
+  enabled: boolean;
+  /** Đã tải được dữ liệu từ máy chủ ít nhất một lần trong phiên này */
+  connected: boolean;
+  busy: boolean;
+  /** Lỗi của lần đồng bộ gần nhất, null nếu ổn */
+  error: string | null;
+}
 
 export type Mutator = (db: DB, user: User | null) => DB;
 
@@ -19,6 +35,9 @@ interface DbContextValue {
   mutate: (fn: Mutator, successMessage?: string) => boolean;
   // 'DEMO' = khôi phục bộ dữ liệu mẫu; 'BLANK' = xóa sạch, chỉ giữ tài khoản admin hiện tại
   resetData: (mode: 'DEMO' | 'BLANK') => void;
+  sync: SyncStatus;
+  // Đẩy thay đổi còn treo rồi tải lại dữ liệu từ máy chủ
+  refresh: () => Promise<void>;
 }
 
 const DbContext = createContext<DbContextValue | null>(null);
@@ -30,6 +49,63 @@ export function DbProvider({ children }: { children: React.ReactNode }) {
   const toast = useToast();
   const dbRef = useRef(db);
   dbRef.current = db;
+
+  // ---- Đồng bộ với máy chủ (inka.vn) ----
+  const [sync, setSync] = useState<SyncStatus>({ enabled: serverEnabled(), connected: false, busy: false, error: null });
+  const syncedRef = useRef<DB | null>(null);   // trạng thái máy chủ đã biết; null = chưa tải được lần nào
+  const refsRef = useRef<Refs>(emptyRefs());
+  const dirtyRef = useRef(false);              // có thay đổi trên máy chưa đẩy xong
+  const queueRef = useRef<Promise<void>>(Promise.resolve());
+
+  // Các lượt đẩy / tải chạy nối đuôi nhau, không bao giờ chen vào nhau
+  const enqueue = useCallback((task: () => Promise<void>) => {
+    const run = queueRef.current.then(async () => {
+      setSync((v) => ({ ...v, busy: true }));
+      try {
+        await task();
+        setSync((v) => ({ ...v, busy: false, error: null }));
+      } catch (e) {
+        setSync((v) => ({ ...v, busy: false, error: inkaMessage(e) }));
+        throw e;
+      }
+    });
+    queueRef.current = run.catch(() => {});
+    return run;
+  }, []);
+
+  const pushPending = useCallback(async () => {
+    const synced = syncedRef.current;
+    if (!synced || !dirtyRef.current) return;
+    const target = dbRef.current;
+    await push(diffDb(synced, target), refsRef.current);
+    syncedRef.current = target;
+    if (dbRef.current === target) dirtyRef.current = false;
+  }, []);
+
+  const pullLatest = useCallback(async () => {
+    const { db: remote, refs } = await pull();
+    // Người dùng vừa thao tác trong lúc đang tải: giữ bản trên máy, lượt sau tải lại
+    if (dirtyRef.current) return;
+    refsRef.current = refs;
+    syncedRef.current = remote;
+    setSync((v) => (v.connected ? v : { ...v, connected: true }));
+    if (JSON.stringify(remote) !== JSON.stringify(dbRef.current)) {
+      setDb(remote);
+      persistDB(remote).catch(() => {});
+    }
+  }, []);
+
+  const refresh = useCallback(async () => {
+    if (!serverEnabled()) return;
+    try {
+      await enqueue(async () => {
+        await pushPending();
+        await pullLatest();
+      });
+    } catch {
+      // Lỗi đã nằm trong sync.error; lượt sau thử lại
+    }
+  }, [enqueue, pushPending, pullLatest]);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,13 +119,33 @@ export function DbProvider({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    if (!ready || !serverEnabled()) return;
+    refresh();
+    const timer = setInterval(() => { if (AppState.currentState === 'active') refresh(); }, POLL_MS);
+    const sub = AppState.addEventListener('change', (state) => { if (state === 'active') refresh(); });
+    return () => { clearInterval(timer); sub.remove(); };
+  }, [ready, refresh]);
+
   // User đang đăng nhập luôn được tra lại từ db để phản ánh chỉnh sửa tài khoản mới nhất
   const user = useMemo(() => (userId ? db.users.find((u) => u.id === userId) ?? null : null), [db.users, userId]);
 
   const commit = useCallback((next: DB) => {
+    dbRef.current = next;
     setDb(next);
     persistDB(next).catch(() => {});
-  }, []);
+    if (!serverEnabled()) return;
+    dirtyRef.current = true;
+    enqueue(pushPending).catch((e) => toast.error(`Chưa lưu được lên máy chủ: ${inkaMessage(e)}. Sẽ thử lại.`));
+  }, [enqueue, pushPending, toast]);
+
+  // Khi dùng máy chủ, chỉ cho thao tác sau khi đã tải được dữ liệu mới nhất
+  const assertConnected = useCallback(() => {
+    if (!serverEnabled() || syncedRef.current) return true;
+    toast.error('Chưa kết nối được máy chủ. Kiểm tra mạng rồi thử lại.');
+    refresh();
+    return false;
+  }, [toast, refresh]);
 
   const login = useCallback((username: string, password: string) => {
     const uname = username.trim().toLowerCase();
@@ -66,6 +162,7 @@ export function DbProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const mutate = useCallback((fn: Mutator, successMessage?: string) => {
+    if (!assertConnected()) return false;
     try {
       const current = dbRef.current;
       const currentUser = userId ? current.users.find((u) => u.id === userId) ?? null : null;
@@ -77,12 +174,15 @@ export function DbProvider({ children }: { children: React.ReactNode }) {
       toast.error(e?.message || 'Đã xảy ra lỗi');
       return false;
     }
-  }, [userId, commit, toast]);
+  }, [userId, commit, toast, assertConnected]);
 
   const resetData = useCallback((mode: 'DEMO' | 'BLANK') => {
     if (!user || !isAdmin(user)) { toast.error('Chỉ Quản Trị Viên mới được đặt lại dữ liệu!'); return; }
+    if (!assertConnected()) return;
+    // Dữ liệu trên máy chủ là dùng chung: đặt lại sẽ thay đổi trên mọi thiết bị
+    const shared = serverEnabled() ? '\n\nDữ liệu dùng chung trên máy chủ: mọi thiết bị đều bị thay đổi theo.' : '';
     if (mode === 'DEMO') {
-      Alert.alert('Đặt lại dữ liệu demo', 'Khôi phục toàn bộ dữ liệu về bộ mẫu ban đầu? Dữ liệu hiện tại sẽ bị thay thế.', [
+      Alert.alert('Đặt lại dữ liệu demo', `Khôi phục toàn bộ dữ liệu về bộ mẫu ban đầu? Dữ liệu hiện tại sẽ bị thay thế.${shared}`, [
         { text: 'Hủy', style: 'cancel' },
         { text: 'Đặt lại', style: 'destructive', onPress: () => { commit(cloneDB(INITIAL_DATA)); toast.success('Đã khôi phục dữ liệu demo'); } },
       ]);
@@ -90,15 +190,15 @@ export function DbProvider({ children }: { children: React.ReactNode }) {
     }
     Alert.alert(
       'Danh sách trắng',
-      `Xóa TOÀN BỘ dữ liệu (kho, sản phẩm, đối tác, xe, tồn kho, chứng từ, tài khoản khác) để tự nhập lại từ đầu?\n\nChỉ giữ lại tài khoản đang đăng nhập: ${user.username}.`,
+      `Xóa TOÀN BỘ dữ liệu (kho, sản phẩm, đối tác, xe, tồn kho, chứng từ, tài khoản khác) để tự nhập lại từ đầu?\n\nChỉ giữ lại tài khoản đang đăng nhập: ${user.username}.${shared}`,
       [
         { text: 'Hủy', style: 'cancel' },
         { text: 'Xóa & bắt đầu trắng', style: 'destructive', onPress: () => { commit(makeBlankData(user)); toast.success('Đã tạo danh sách trắng, hãy thêm kho & sản phẩm để bắt đầu'); } },
       ],
     );
-  }, [user, commit, toast]);
+  }, [user, commit, toast, assertConnected]);
 
-  const value = useMemo<DbContextValue>(() => ({ db, user, ready, login, logout, mutate, resetData }), [db, user, ready, login, logout, mutate, resetData]);
+  const value = useMemo<DbContextValue>(() => ({ db, user, ready, login, logout, mutate, resetData, sync, refresh }), [db, user, ready, login, logout, mutate, resetData, sync, refresh]);
 
   return <DbContext.Provider value={value}>{children}</DbContext.Provider>;
 }
